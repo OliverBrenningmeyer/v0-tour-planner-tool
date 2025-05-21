@@ -13,16 +13,9 @@ interface DeliveryDatePickerProps {
   onChange: (day: string) => void
   label?: string
   disabled?: boolean
-  placeholder?: string
 }
 
-export function DeliveryDatePicker({
-  value,
-  onChange,
-  label,
-  disabled = false,
-  placeholder = "Select date",
-}: DeliveryDatePickerProps) {
+export function DeliveryDatePicker({ value, onChange, label, disabled = false }: DeliveryDatePickerProps) {
   const [date, setDate] = useState<Date | undefined>(undefined)
   const [open, setOpen] = useState(false)
 
@@ -55,12 +48,7 @@ export function DeliveryDatePicker({
 
   // Convert selected date to day string
   const handleDateChange = (selectedDate: Date | undefined) => {
-    if (!selectedDate) {
-      onChange("")
-      setDate(undefined)
-      setOpen(false)
-      return
-    }
+    if (!selectedDate) return
 
     const day = selectedDate.getDay()
     let dayString = ""
@@ -91,10 +79,7 @@ export function DeliveryDatePicker({
               {label && <span className="ml-1 text-muted-foreground">({label})</span>}
             </>
           ) : (
-            <span>
-              {placeholder}
-              {label ? ` ${label}` : ""}
-            </span>
+            <span>Select date{label ? ` ${label}` : ""}</span>
           )}
         </Button>
       </PopoverTrigger>
@@ -110,11 +95,6 @@ export function DeliveryDatePicker({
           <p className="text-sm text-muted-foreground">
             Only Monday, Wednesday, and Friday are available for delivery.
           </p>
-          {value && (
-            <Button variant="ghost" size="sm" className="mt-2" onClick={() => handleDateChange(undefined)}>
-              Clear selection
-            </Button>
-          )}
         </div>
       </PopoverContent>
     </Popover>

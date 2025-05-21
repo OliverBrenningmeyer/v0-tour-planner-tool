@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { Building, User, Package, FileText, Loader2, CalendarIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -20,23 +20,21 @@ interface TransportRegistrationFormProps {
   onAddTransport: (transport: Transport) => void
   transports: Transport[]
   capacityPerDay: Record<string, number>
-  initialDay?: string | null
 }
 
 export function TransportRegistrationForm({
   onAddTransport,
   transports,
   capacityPerDay,
-  initialDay = null,
 }: TransportRegistrationFormProps) {
   // Orderer information
   const [ordererBranch] = useState("Berlin Branch") // Prefilled from bexOS login
   const [ordererName] = useState("John Doe") // Prefilled from bexOS login
 
   // Delivery date details
-  const [latestDeliveryDay, setLatestDeliveryDay] = useState("")
+  const [latestDeliveryDay, setLatestDeliveryDay] = useState("monday")
   const [latestDeliveryTimeWindow, setLatestDeliveryTimeWindow] = useState<"Morning" | "Afternoon">("Morning")
-  const [idealDeliveryDay, setIdealDeliveryDay] = useState(initialDay || "monday")
+  const [idealDeliveryDay, setIdealDeliveryDay] = useState("monday")
   const [idealDeliveryTimeWindow, setIdealDeliveryTimeWindow] = useState<"Morning" | "Afternoon">("Morning")
 
   // Customer information
@@ -61,13 +59,6 @@ export function TransportRegistrationForm({
 
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-
-  // Update ideal delivery day when initialDay changes
-  useEffect(() => {
-    if (initialDay) {
-      setIdealDeliveryDay(initialDay)
-    }
-  }, [initialDay])
 
   // Get the actual delivery date based on the selected day
   const getDeliveryDate = (day: string): Date => {
@@ -105,22 +96,14 @@ export function TransportRegistrationForm({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!customerName || !loadDescription) {
+    if (!customerName || !loadDescription || !latestDeliveryDay) {
       setError("Please fill in all required fields")
       return
     }
 
-    // Use ideal delivery day if latest delivery day is not set
-    const deliveryDay = latestDeliveryDay || idealDeliveryDay
-
-    if (!deliveryDay) {
-      setError("Please select a delivery day")
-      return
-    }
-
-    if (isDayAtCapacity(deliveryDay)) {
+    if (isDayAtCapacity(latestDeliveryDay)) {
       setError(
-        `${deliveryDay.charAt(0).toUpperCase() + deliveryDay.slice(1)} is at capacity (${capacityPerDay[deliveryDay]}). Please select another day.`,
+        `${latestDeliveryDay.charAt(0).toUpperCase() + latestDeliveryDay.slice(1)} is at capacity (${capacityPerDay[latestDeliveryDay]}). Please select another day.`,
       )
       return
     }
@@ -128,7 +111,7 @@ export function TransportRegistrationForm({
     setIsSubmitting(true)
 
     // Get the delivery date based on the selected day
-    const deliveryDate = getDeliveryDate(deliveryDay)
+    const deliveryDate = getDeliveryDate(latestDeliveryDay)
 
     // Simulate API call
     setTimeout(() => {
@@ -140,7 +123,7 @@ export function TransportRegistrationForm({
         ordererName,
 
         // Delivery date details
-        latestDeliveryDay: latestDeliveryDay || idealDeliveryDay, // Use ideal day as fallback
+        latestDeliveryDay,
         latestDeliveryTimeWindow,
         idealDeliveryDay,
         idealDeliveryTimeWindow,
@@ -174,7 +157,7 @@ export function TransportRegistrationForm({
         // Legacy fields
         name: customerName, // Use customer name as transport name for compatibility
         description: loadDescription, // Use load description for compatibility
-        deliveryDay: deliveryDay, // Use the determined delivery day
+        deliveryDay: latestDeliveryDay, // Use latest delivery day for compatibility
         status: "pending",
         vehicleType: unloadingOptions.includes("with crane") ? "Kran" : "LKW", // Determine vehicle type from unloading options
       }
@@ -182,8 +165,6 @@ export function TransportRegistrationForm({
       onAddTransport(newTransport)
 
       // Reset form
-      setLatestDeliveryDay("")
-      setIdealDeliveryDay("monday")
       setCustomerName("")
       setCustomerAddress("")
       setCustomerPhone("")
@@ -202,11 +183,7 @@ export function TransportRegistrationForm({
     <Card className="w-full max-w-3xl mx-auto">
       <CardHeader>
         <CardTitle>Register New Transport</CardTitle>
-        <CardDescription>
-          {initialDay
-            ? `Schedule a new transport for ${initialDay.charAt(0).toUpperCase() + initialDay.slice(1)}`
-            : "Schedule a new transport for delivery"}
-        </CardDescription>
+        <CardDescription>Schedule a new transport for delivery</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -246,16 +223,11 @@ export function TransportRegistrationForm({
 
             <div className="space-y-4">
               <h4 className="text-sm font-medium">Deliver latest until</h4>
-              <div className="grid grid-cols-1 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="latestDeliveryDay">Day</Label>
-                  <DeliveryDatePicker
-                    value={latestDeliveryDay}
-                    onChange={setLatestDeliveryDay}
-                    label="latest"
-                    placeholder="Select a day (optional)"
-                  />
-                  {latestDeliveryDay && isDayAtCapacity(latestDeliveryDay) && (
+                  <DeliveryDatePicker value={latestDeliveryDay} onChange={setLatestDeliveryDay} label="latest" />
+                  {isDayAtCapacity(latestDeliveryDay) && (
                     <p className="text-sm text-red-500">Warning: This day is at capacity</p>
                   )}
                 </div>
@@ -281,15 +253,10 @@ export function TransportRegistrationForm({
 
             <div className="space-y-4">
               <h4 className="text-sm font-medium">Ideal delivery date</h4>
-              <div className="grid grid-cols-1 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="idealDeliveryDay">Day</Label>
                   <DeliveryDatePicker value={idealDeliveryDay} onChange={setIdealDeliveryDay} label="ideal" />
-                  {initialDay && (
-                    <p className="text-sm text-blue-600">
-                      Pre-filled from selected slot: {initialDay.charAt(0).toUpperCase() + initialDay.slice(1)}
-                    </p>
-                  )}
                 </div>
                 <div className="space-y-2">
                   <Label>Time Window</Label>
@@ -319,15 +286,26 @@ export function TransportRegistrationForm({
               Customer Information
             </h3>
             <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="customerName">Name</Label>
-                <Input
-                  id="customerName"
-                  value={customerName}
-                  onChange={(e) => setCustomerName(e.target.value)}
-                  placeholder="Customer Name"
-                  required
-                />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="customerName">Name</Label>
+                  <Input
+                    id="customerName"
+                    value={customerName}
+                    onChange={(e) => setCustomerName(e.target.value)}
+                    placeholder="Customer Name"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="customerPhone">Phone Number</Label>
+                  <Input
+                    id="customerPhone"
+                    value={customerPhone}
+                    onChange={(e) => setCustomerPhone(e.target.value)}
+                    placeholder="Phone Number"
+                  />
+                </div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="customerAddress">Address</Label>
@@ -337,15 +315,6 @@ export function TransportRegistrationForm({
                   onChange={(e) => setCustomerAddress(e.target.value)}
                   placeholder="Customer Address"
                   rows={2}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="customerPhone">Phone Number</Label>
-                <Input
-                  id="customerPhone"
-                  value={customerPhone}
-                  onChange={(e) => setCustomerPhone(e.target.value)}
-                  placeholder="Phone Number"
                 />
               </div>
             </div>
@@ -369,7 +338,7 @@ export function TransportRegistrationForm({
                   required
                 />
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="referenceNumber">Reference Number</Label>
                   <Input
@@ -383,86 +352,82 @@ export function TransportRegistrationForm({
                   <Label htmlFor="weight">Weight</Label>
                   <Input id="weight" value={weight} onChange={(e) => setWeight(e.target.value)} placeholder="Weight" />
                 </div>
+                <div className="space-y-2">
+                  <Label>Size</Label>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroup value={size} onValueChange={setSize} className="flex space-x-2">
+                      <div className="flex items-center space-x-1">
+                        <RadioGroupItem value="S" id="size-s" />
+                        <Label htmlFor="size-s">S</Label>
+                      </div>
+                      <div className="flex items-center space-x-1">
+                        <RadioGroupItem value="M" id="size-m" />
+                        <Label htmlFor="size-m">M</Label>
+                      </div>
+                      <div className="flex items-center space-x-1">
+                        <RadioGroupItem value="L" id="size-l" />
+                        <Label htmlFor="size-l">L</Label>
+                      </div>
+                    </RadioGroup>
+                  </div>
+                </div>
               </div>
+            </div>
+          </div>
+
+          {/* Unloading Options and Document Upload in a grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Unloading Options */}
+            <div className="space-y-4 border rounded-md p-4">
+              <h3 className="font-medium">Unloading Options</h3>
               <div className="space-y-2">
-                <Label>Size</Label>
-                <div className="flex items-center space-x-4">
-                  <RadioGroup value={size} onValueChange={setSize} className="flex space-x-2">
-                    <div className="flex items-center space-x-1">
-                      <RadioGroupItem value="S" id="size-s" />
-                      <Label htmlFor="size-s">S</Label>
-                    </div>
-                    <div className="flex items-center space-x-1">
-                      <RadioGroupItem value="M" id="size-m" />
-                      <Label htmlFor="size-m">M</Label>
-                    </div>
-                    <div className="flex items-center space-x-1">
-                      <RadioGroupItem value="L" id="size-l" />
-                      <Label htmlFor="size-l">L</Label>
-                    </div>
-                  </RadioGroup>
-                  <span className="text-sm text-muted-foreground">or</span>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="boardsteinkarte"
+                    checked={unloadingOptions.includes("Boardsteinkarte")}
+                    onCheckedChange={() => toggleUnloadingOption("Boardsteinkarte")}
+                  />
+                  <Label htmlFor="boardsteinkarte">Boardsteinkarte (Default)</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="with-crane"
+                    checked={unloadingOptions.includes("with crane")}
+                    onCheckedChange={() => toggleUnloadingOption("with crane")}
+                  />
+                  <Label htmlFor="with-crane">with crane</Label>
+                </div>
+              </div>
+            </div>
+
+            {/* Document Upload */}
+            <div className="space-y-4 border rounded-md p-4">
+              <h3 className="font-medium flex items-center gap-2">
+                <FileText className="h-4 w-4" />
+                Document
+              </h3>
+              <div className="space-y-2">
+                <Label htmlFor="document">Upload Document</Label>
+                <div className="flex items-center gap-2">
                   <Input
-                    value={size.match(/^[SML]$/) ? "" : size}
-                    onChange={(e) => setSize(e.target.value)}
-                    placeholder="Custom size"
-                    className="w-32"
+                    id="document"
+                    type="file"
+                    accept=".pdf,.jpg,.jpeg,.png"
+                    className="flex-1"
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files[0]) {
+                        setDocumentFile(e.target.files[0])
+                      }
+                    }}
                   />
                 </div>
+                {documentFile && (
+                  <div className="flex items-center gap-2 text-sm">
+                    <FileText className="h-4 w-4" />
+                    <span>{documentFile.name}</span>
+                  </div>
+                )}
               </div>
-            </div>
-          </div>
-
-          {/* Unloading Options */}
-          <div className="space-y-4 border rounded-md p-4">
-            <h3 className="font-medium">Unloading Options</h3>
-            <div className="space-y-2">
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="boardsteinkarte"
-                  checked={unloadingOptions.includes("Boardsteinkarte")}
-                  onCheckedChange={() => toggleUnloadingOption("Boardsteinkarte")}
-                />
-                <Label htmlFor="boardsteinkarte">Boardsteinkarte (Default)</Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="with-crane"
-                  checked={unloadingOptions.includes("with crane")}
-                  onCheckedChange={() => toggleUnloadingOption("with crane")}
-                />
-                <Label htmlFor="with-crane">with crane</Label>
-              </div>
-            </div>
-          </div>
-
-          {/* Document Upload */}
-          <div className="space-y-4 border rounded-md p-4">
-            <h3 className="font-medium flex items-center gap-2">
-              <FileText className="h-4 w-4" />
-              Document
-            </h3>
-            <div className="space-y-2">
-              <Label htmlFor="document">Upload Document (PDF, Images)</Label>
-              <div className="flex items-center gap-2">
-                <Input
-                  id="document"
-                  type="file"
-                  accept=".pdf,.jpg,.jpeg,.png"
-                  className="flex-1"
-                  onChange={(e) => {
-                    if (e.target.files && e.target.files[0]) {
-                      setDocumentFile(e.target.files[0])
-                    }
-                  }}
-                />
-              </div>
-              {documentFile && (
-                <div className="flex items-center gap-2 text-sm">
-                  <FileText className="h-4 w-4" />
-                  <span>{documentFile.name}</span>
-                </div>
-              )}
             </div>
           </div>
 

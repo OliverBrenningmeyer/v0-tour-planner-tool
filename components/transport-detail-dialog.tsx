@@ -350,7 +350,7 @@ export function TransportDetailDialog({
 
                   <div className="space-y-4">
                     <h4 className="text-sm font-medium">Deliver latest until</h4>
-                    <div className="grid grid-cols-1 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="latestDeliveryDay">Day</Label>
                         <DeliveryDatePicker value={latestDeliveryDay} onChange={setLatestDeliveryDay} label="latest" />
@@ -380,7 +380,7 @@ export function TransportDetailDialog({
 
                   <div className="space-y-4">
                     <h4 className="text-sm font-medium">Ideal delivery date</h4>
-                    <div className="grid grid-cols-1 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="idealDeliveryDay">Day</Label>
                         <DeliveryDatePicker value={idealDeliveryDay} onChange={setIdealDeliveryDay} label="ideal" />
@@ -413,14 +413,25 @@ export function TransportDetailDialog({
                     Customer Information
                   </h3>
                   <div className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="customerName">Name</Label>
-                      <Input
-                        id="customerName"
-                        value={customerName}
-                        onChange={(e) => setCustomerName(e.target.value)}
-                        placeholder="Customer Name"
-                      />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="customerName">Name</Label>
+                        <Input
+                          id="customerName"
+                          value={customerName}
+                          onChange={(e) => setCustomerName(e.target.value)}
+                          placeholder="Customer Name"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="customerPhone">Phone Number</Label>
+                        <Input
+                          id="customerPhone"
+                          value={customerPhone}
+                          onChange={(e) => setCustomerPhone(e.target.value)}
+                          placeholder="Phone Number"
+                        />
+                      </div>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="customerAddress">Address</Label>
@@ -430,15 +441,6 @@ export function TransportDetailDialog({
                         onChange={(e) => setCustomerAddress(e.target.value)}
                         placeholder="Customer Address"
                         rows={2}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="customerPhone">Phone Number</Label>
-                      <Input
-                        id="customerPhone"
-                        value={customerPhone}
-                        onChange={(e) => setCustomerPhone(e.target.value)}
-                        placeholder="Phone Number"
                       />
                     </div>
                   </div>
