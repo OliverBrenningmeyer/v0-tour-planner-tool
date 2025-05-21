@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Building, User, Package, FileText, Loader2, CalendarIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -15,26 +15,31 @@ import type { Transport } from "@/lib/types"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { DeliveryDatePicker } from "./delivery-date-picker"
 import { nextMonday, nextWednesday, nextFriday } from "date-fns"
+import { Badge } from "@/components/ui/badge"
 
 interface TransportRegistrationFormProps {
   onAddTransport: (transport: Transport) => void
   transports: Transport[]
   capacityPerDay: Record<string, number>
+  initialDay?: string | null
+  isAddonSlot?: boolean
 }
 
 export function TransportRegistrationForm({
   onAddTransport,
   transports,
   capacityPerDay,
+  initialDay = null,
+  isAddonSlot = false,
 }: TransportRegistrationFormProps) {
   // Orderer information
   const [ordererBranch] = useState("Berlin Branch") // Prefilled from bexOS login
   const [ordererName] = useState("John Doe") // Prefilled from bexOS login
 
   // Delivery date details
-  const [latestDeliveryDay, setLatestDeliveryDay] = useState("monday")
+  const [latestDeliveryDay, setLatestDeliveryDay] = useState(initialDay || "monday")
   const [latestDeliveryTimeWindow, setLatestDeliveryTimeWindow] = useState<"Morning" | "Afternoon">("Morning")
-  const [idealDeliveryDay, setIdealDeliveryDay] = useState("monday")
+  const [idealDeliveryDay, setIdealDeliveryDay] = useState(initialDay || "monday")
   const [idealDeliveryTimeWindow, setIdealDeliveryTimeWindow] = useState<"Morning" | "Afternoon">("Morning")
 
   // Customer information
@@ -60,6 +65,14 @@ export function TransportRegistrationForm({
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Update delivery day when initialDay changes
+  useEffect(() => {
+    if (initialDay) {
+      setLatestDeliveryDay(initialDay)
+      setIdealDeliveryDay(initialDay)
+    }
+  }, [initialDay])
+
   // Get the actual delivery date based on the selected day
   const getDeliveryDate = (day: string): Date => {
     const today = new Date()
@@ -79,8 +92,10 @@ export function TransportRegistrationForm({
   // Check if the selected day is at capacity
   const isDayAtCapacity = (day: string) => {
     if (!day) return false
+    if (isAddonSlot) return false // Addon slots don't have capacity limits
 
-    const dayTransports = transports.filter((t) => t.deliveryDay === day)
+    // Count transports by ideal delivery day
+    const dayTransports = transports.filter((t) => t.idealDeliveryDay === day)
     return dayTransports.length >= (capacityPerDay[day] || 0)
   }
 
@@ -96,14 +111,14 @@ export function TransportRegistrationForm({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!customerName || !loadDescription || !latestDeliveryDay) {
+    if (!customerName || !loadDescription || !latestDeliveryDay || !idealDeliveryDay) {
       setError("Please fill in all required fields")
       return
     }
 
-    if (isDayAtCapacity(latestDeliveryDay)) {
+    if (!isAddonSlot && isDayAtCapacity(idealDeliveryDay)) {
       setError(
-        `${latestDeliveryDay.charAt(0).toUpperCase() + latestDeliveryDay.slice(1)} is at capacity (${capacityPerDay[latestDeliveryDay]}). Please select another day.`,
+        `${idealDeliveryDay.charAt(0).toUpperCase() + idealDeliveryDay.slice(1)} is at capacity (${capacityPerDay[idealDeliveryDay]}). Please select another day.`,
       )
       return
     }
@@ -111,79 +126,73 @@ export function TransportRegistrationForm({
     setIsSubmitting(true)
 
     // Get the delivery date based on the selected day
-    const deliveryDate = getDeliveryDate(latestDeliveryDay)
+    const deliveryDate = getDeliveryDate(idealDeliveryDay)
 
-    // Simulate API call
-    setTimeout(() => {
-      const newTransport: Transport = {
-        id: "", // Will be set by the parent component
+    // Create new transport
+    const newTransport: Transport = {
+      id: "", // Will be set by the backend
 
-        // Orderer information
-        ordererBranch,
-        ordererName,
+      // Orderer information
+      ordererBranch,
+      ordererName,
 
-        // Delivery date details
-        latestDeliveryDay,
-        latestDeliveryTimeWindow,
-        idealDeliveryDay,
-        idealDeliveryTimeWindow,
-        deliveryDate: deliveryDate.toISOString(), // Store the actual date
+      // Delivery date details
+      latestDeliveryDay,
+      latestDeliveryTimeWindow,
+      idealDeliveryDay,
+      idealDeliveryTimeWindow,
+      deliveryDate: deliveryDate.toISOString(), // Store the actual date
 
-        // Customer information
-        customerName,
-        customerAddress,
-        customerPhone,
+      // Customer information
+      customerName,
+      customerAddress,
+      customerPhone,
 
-        // Load details
-        loadDescription,
-        referenceNumber,
-        weight,
-        size,
+      // Load details
+      loadDescription,
+      referenceNumber,
+      weight,
+      size,
 
-        // Unloading options
-        unloadingOptions,
+      // Unloading options
+      unloadingOptions,
 
-        // Document
-        documentName: documentFile?.name,
-        documentUrl: documentFile ? URL.createObjectURL(documentFile) : undefined,
+      // Document
+      documentName: documentFile?.name,
+      documentUrl: documentFile ? URL.createObjectURL(documentFile) : undefined,
 
-        // Hidden fields
-        createdDate: new Date().toISOString(),
-        createdBy: ordererName,
-        lastModifiedDate: new Date().toISOString(),
-        lastModifiedBy: ordererName,
-        creationChannel: "bexOS form",
+      // Hidden fields
+      createdDate: new Date().toISOString(),
+      createdBy: ordererName,
+      lastModifiedDate: new Date().toISOString(),
+      lastModifiedBy: ordererName,
+      creationChannel: "bexOS form",
 
-        // Legacy fields
-        name: customerName, // Use customer name as transport name for compatibility
-        description: loadDescription, // Use load description for compatibility
-        deliveryDay: latestDeliveryDay, // Use latest delivery day for compatibility
-        status: "pending",
-        vehicleType: unloadingOptions.includes("with crane") ? "Kran" : "LKW", // Determine vehicle type from unloading options
-      }
+      // Legacy fields
+      name: customerName, // Use customer name as transport name for compatibility
+      description: loadDescription, // Use load description for compatibility
+      deliveryDay: idealDeliveryDay, // Use ideal delivery day for compatibility
+      status: "pending",
+      vehicleType: unloadingOptions.includes("with crane") ? "Kran" : "LKW", // Determine vehicle type from unloading options
+    }
 
-      onAddTransport(newTransport)
-
-      // Reset form
-      setCustomerName("")
-      setCustomerAddress("")
-      setCustomerPhone("")
-      setLoadDescription("")
-      setReferenceNumber("")
-      setWeight("")
-      setSize("M")
-      setUnloadingOptions(["Boardsteinkarte"])
-      setDocumentFile(null)
-      setError(null)
-      setIsSubmitting(false)
-    }, 1000)
+    onAddTransport(newTransport)
   }
 
   return (
     <Card className="w-full max-w-3xl mx-auto">
       <CardHeader>
-        <CardTitle>Register New Transport</CardTitle>
-        <CardDescription>Schedule a new transport for delivery</CardDescription>
+        <div className="flex justify-between items-start">
+          <div>
+            <CardTitle>Register New Transport</CardTitle>
+            <CardDescription>Schedule a new transport for delivery</CardDescription>
+          </div>
+          {isAddonSlot && (
+            <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
+              Additional Slot
+            </Badge>
+          )}
+        </div>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -222,41 +231,14 @@ export function TransportRegistrationForm({
             </h3>
 
             <div className="space-y-4">
-              <h4 className="text-sm font-medium">Deliver latest until</h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="latestDeliveryDay">Day</Label>
-                  <DeliveryDatePicker value={latestDeliveryDay} onChange={setLatestDeliveryDay} label="latest" />
-                  {isDayAtCapacity(latestDeliveryDay) && (
-                    <p className="text-sm text-red-500">Warning: This day is at capacity</p>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <Label>Time Window</Label>
-                  <RadioGroup
-                    value={latestDeliveryTimeWindow}
-                    onValueChange={(value) => setLatestDeliveryTimeWindow(value as "Morning" | "Afternoon")}
-                    className="flex space-x-4"
-                  >
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="Morning" id="latest-morning" />
-                      <Label htmlFor="latest-morning">Morning</Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="Afternoon" id="latest-afternoon" />
-                      <Label htmlFor="latest-afternoon">Afternoon</Label>
-                    </div>
-                  </RadioGroup>
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-4">
               <h4 className="text-sm font-medium">Ideal delivery date</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="idealDeliveryDay">Day</Label>
                   <DeliveryDatePicker value={idealDeliveryDay} onChange={setIdealDeliveryDay} label="ideal" />
+                  {!isAddonSlot && isDayAtCapacity(idealDeliveryDay) && (
+                    <p className="text-sm text-red-500">Warning: This day is at capacity</p>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label>Time Window</Label>
@@ -272,6 +254,33 @@ export function TransportRegistrationForm({
                     <div className="flex items-center space-x-2">
                       <RadioGroupItem value="Afternoon" id="ideal-afternoon" />
                       <Label htmlFor="ideal-afternoon">Afternoon</Label>
+                    </div>
+                  </RadioGroup>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <h4 className="text-sm font-medium">Deliver latest until</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="latestDeliveryDay">Day</Label>
+                  <DeliveryDatePicker value={latestDeliveryDay} onChange={setLatestDeliveryDay} label="latest" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Time Window</Label>
+                  <RadioGroup
+                    value={latestDeliveryTimeWindow}
+                    onValueChange={(value) => setLatestDeliveryTimeWindow(value as "Morning" | "Afternoon")}
+                    className="flex space-x-4"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="Morning" id="latest-morning" />
+                      <Label htmlFor="latest-morning">Morning</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="Afternoon" id="latest-afternoon" />
+                      <Label htmlFor="latest-afternoon">Afternoon</Label>
                     </div>
                   </RadioGroup>
                 </div>

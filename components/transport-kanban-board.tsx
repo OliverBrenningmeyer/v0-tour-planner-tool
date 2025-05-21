@@ -19,14 +19,13 @@ import { TransportCard } from "./transport-card"
 import { DroppableColumn } from "./droppable-column"
 import { TransportDetailDialog } from "./transport-detail-dialog"
 import type { Transport } from "@/lib/types"
-import { getTransportsByDay } from "@/lib/dnd-utils"
 import { startOfWeek, addDays } from "date-fns"
 
 interface TransportKanbanBoardProps {
   transports: Transport[]
   capacityPerDay: Record<string, number>
   onTransportsChange: (transports: Transport[]) => void
-  onEmptySlotClick?: (day: string) => void
+  onEmptySlotClick?: (day: string, isAddon?: boolean) => void
   selectedWeek: Date
 }
 
@@ -55,10 +54,27 @@ export function TransportKanbanBoard({
     }),
   )
 
-  // Group transports by delivery day
-  const mondayTransports = getTransportsByDay(transports, "monday")
-  const wednesdayTransports = getTransportsByDay(transports, "wednesday")
-  const fridayTransports = getTransportsByDay(transports, "friday")
+  // Group transports by ideal delivery day
+  const getTransportsByDay = (day: string) => {
+    return transports.filter((t) => t.idealDeliveryDay === day)
+  }
+
+  // Group transports by ideal delivery day and split into regular and addon
+  const getTransportsForDay = (day: string) => {
+    const allDayTransports = getTransportsByDay(day)
+    const capacityLimit = capacityPerDay[day] || 0
+
+    // Split into regular and addon transports
+    const regularTransports = allDayTransports.slice(0, capacityLimit)
+    const addonTransports = allDayTransports.slice(capacityLimit)
+
+    return { regularTransports, addonTransports }
+  }
+
+  // Get transports for each day
+  const mondayTransports = getTransportsForDay("monday")
+  const wednesdayTransports = getTransportsForDay("wednesday")
+  const fridayTransports = getTransportsForDay("friday")
 
   // Calculate the actual dates for Monday, Wednesday, and Friday of the selected week
   const weekStart = startOfWeek(selectedWeek, { weekStartsOn: 1 }) // Start on Monday
@@ -68,7 +84,7 @@ export function TransportKanbanBoard({
 
   // Check if a day is at capacity
   const isDayAtCapacity = (day: string) => {
-    const dayTransports = transports.filter((t) => t.deliveryDay === day)
+    const dayTransports = getTransportsByDay(day)
     return dayTransports.length >= (capacityPerDay[day] || 0)
   }
 
@@ -135,7 +151,7 @@ export function TransportKanbanBoard({
     else if (typeof overId === "string") {
       const overTransport = transports.find((t) => t.id === overId)
       if (overTransport) {
-        targetColumn = overTransport.deliveryDay
+        targetColumn = overTransport.idealDeliveryDay
       }
     }
 
@@ -143,19 +159,17 @@ export function TransportKanbanBoard({
     if (!targetColumn) return
 
     // If trying to move to the same column, no change needed
-    if (transportToMove.deliveryDay === targetColumn) return
-
-    // Check if destination day is at capacity
-    const dayTransports = transports.filter((t) => t.deliveryDay === targetColumn)
-    if (dayTransports.length >= capacityPerDay[targetColumn]) {
-      setDragError(`Cannot move transport to ${targetColumn}. The day is at capacity.`)
-      return
-    }
+    if (transportToMove.idealDeliveryDay === targetColumn) return
 
     // Create updated transports array with the moved transport
     const updatedTransports = transports.map((t) => {
       if (t.id === transportToMove.id) {
-        return { ...t, deliveryDay: targetColumn }
+        return {
+          ...t,
+          idealDeliveryDay: targetColumn,
+          // Also update deliveryDay for compatibility with existing code
+          deliveryDay: targetColumn,
+        }
       }
       return t
     })
@@ -184,7 +198,8 @@ export function TransportKanbanBoard({
           <DroppableColumn
             day="Monday"
             date={mondayDate}
-            transports={mondayTransports}
+            transports={mondayTransports.regularTransports}
+            addonTransports={mondayTransports.addonTransports}
             capacityLimit={capacityPerDay.monday}
             isAtCapacity={isDayAtCapacity("monday")}
             onTransportClick={handleTransportClick}
@@ -194,7 +209,8 @@ export function TransportKanbanBoard({
           <DroppableColumn
             day="Wednesday"
             date={wednesdayDate}
-            transports={wednesdayTransports}
+            transports={wednesdayTransports.regularTransports}
+            addonTransports={wednesdayTransports.addonTransports}
             capacityLimit={capacityPerDay.wednesday}
             isAtCapacity={isDayAtCapacity("wednesday")}
             onTransportClick={handleTransportClick}
@@ -204,7 +220,8 @@ export function TransportKanbanBoard({
           <DroppableColumn
             day="Friday"
             date={fridayDate}
-            transports={fridayTransports}
+            transports={fridayTransports.regularTransports}
+            addonTransports={fridayTransports.addonTransports}
             capacityLimit={capacityPerDay.friday}
             isAtCapacity={isDayAtCapacity("friday")}
             onTransportClick={handleTransportClick}

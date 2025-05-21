@@ -12,6 +12,7 @@ export function DroppableColumn({
   day,
   date,
   transports,
+  addonTransports,
   capacityLimit,
   isAtCapacity,
   onTransportClick,
@@ -22,11 +23,14 @@ export function DroppableColumn({
   })
 
   const formattedDay = day.charAt(0).toUpperCase() + day.slice(1)
-  const transportIds = transports.map((t) => t.id)
+  const transportIds = [...transports, ...addonTransports].map((t) => t.id)
 
-  // Calculate number of empty slots to display
+  // Calculate number of empty slots to display in main section
   const emptySlotCount = Math.max(0, capacityLimit - transports.length)
   const emptySlots = Array.from({ length: emptySlotCount }, (_, i) => i)
+
+  // Always show one empty slot in addon section if there are any addon transports
+  const showAddonEmptySlot = addonTransports.length > 0 || transports.length >= capacityLimit
 
   // Format the date
   const formattedDate = date ? format(date, "MMM d, yyyy") : ""
@@ -67,28 +71,58 @@ export function DroppableColumn({
         }`}
       >
         <SortableContext items={transportIds} strategy={verticalListSortingStrategy}>
-          {transports.length === 0 && emptySlots.length === 0 ? (
+          {transports.length === 0 && addonTransports.length === 0 ? (
             <div className="flex items-center justify-center h-full text-gray-400">No transports scheduled</div>
           ) : (
-            <div className="space-y-3">
-              {transports.map((transport, index) => (
-                <DraggableTransportCard
-                  key={transport.id}
-                  transport={transport}
-                  isOverCapacity={index >= capacityLimit}
-                  index={index}
-                  onClick={onTransportClick ? () => onTransportClick(transport) : undefined}
-                />
-              ))}
+            <div className="space-y-6">
+              {/* Main capacity section */}
+              <div className="space-y-3">
+                <h4 className="text-sm font-medium text-gray-500">Regular Slots</h4>
+                {transports.map((transport, index) => (
+                  <DraggableTransportCard
+                    key={transport.id}
+                    transport={transport}
+                    isOverCapacity={false}
+                    index={index}
+                    onClick={onTransportClick ? () => onTransportClick(transport) : undefined}
+                  />
+                ))}
 
-              {/* Empty slots */}
-              {emptySlots.map((_, index) => (
-                <EmptySlot
-                  key={`empty-${day}-${index}`}
-                  day={day.toLowerCase()}
-                  onClick={onEmptySlotClick || (() => {})}
-                />
-              ))}
+                {/* Empty slots in main section */}
+                {emptySlots.map((_, index) => (
+                  <EmptySlot
+                    key={`empty-${day}-${index}`}
+                    day={day.toLowerCase()}
+                    onClick={() => (onEmptySlotClick ? onEmptySlotClick(day.toLowerCase(), false) : undefined)}
+                  />
+                ))}
+              </div>
+
+              {/* Addon section - only show if there are addon transports or if main section is at capacity */}
+              {(addonTransports.length > 0 || transports.length >= capacityLimit) && (
+                <div className="space-y-3 border-t pt-4 border-dashed border-gray-300">
+                  <h4 className="text-sm font-medium text-gray-500">Additional Slots</h4>
+                  {addonTransports.map((transport, index) => (
+                    <DraggableTransportCard
+                      key={transport.id}
+                      transport={transport}
+                      isOverCapacity={true}
+                      index={transports.length + index}
+                      onClick={onTransportClick ? () => onTransportClick(transport) : undefined}
+                    />
+                  ))}
+
+                  {/* Always show one empty slot in addon section */}
+                  {showAddonEmptySlot && (
+                    <EmptySlot
+                      key={`addon-empty-${day}`}
+                      day={day.toLowerCase()}
+                      isAddon={true}
+                      onClick={() => (onEmptySlotClick ? onEmptySlotClick(day.toLowerCase(), true) : undefined)}
+                    />
+                  )}
+                </div>
+              )}
             </div>
           )}
         </SortableContext>

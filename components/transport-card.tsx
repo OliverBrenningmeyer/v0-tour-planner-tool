@@ -1,6 +1,6 @@
 "use client"
 
-import { Package, Truck, Box, GripVertical, Info } from "lucide-react"
+import { Package, Truck, Box, GripVertical, Calendar } from "lucide-react"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Crane } from "./icons/crane"
@@ -50,14 +50,13 @@ export function TransportCard({ transport, isOverCapacity = false, isDragging = 
     }
   }
 
-  // Get delivery time window badge
-  const getTimeWindowBadge = () => {
-    const timeWindow = transport.latestDeliveryTimeWindow || "Morning"
-    return (
-      <Badge variant="secondary" className="text-xs">
-        {timeWindow}
-      </Badge>
-    )
+  // Format the latest delivery day for display
+  const formatLatestDeliveryDay = () => {
+    if (!transport.latestDeliveryDay) return "Not specified"
+
+    // Capitalize first letter
+    const day = transport.latestDeliveryDay.charAt(0).toUpperCase() + transport.latestDeliveryDay.slice(1)
+    return `Until: ${day} (${transport.latestDeliveryTimeWindow})`
   }
 
   return (
@@ -95,7 +94,9 @@ export function TransportCard({ transport, isOverCapacity = false, isDragging = 
       </CardContent>
       <CardFooter className="p-4 pt-0 flex justify-between items-center">
         <div className="flex items-center gap-2">
-          {getTimeWindowBadge()}
+          <Badge variant="secondary" className="text-xs">
+            {transport.latestDeliveryTimeWindow}
+          </Badge>
           {transport.weight && (
             <Badge variant="outline" className="text-xs">
               {transport.weight}
@@ -103,8 +104,8 @@ export function TransportCard({ transport, isOverCapacity = false, isDragging = 
           )}
         </div>
         <div className="flex items-center gap-1 text-xs text-gray-500">
-          <Info className="h-3 w-3" />
-          <span>ID: {transport.id}</span>
+          <Calendar className="h-3 w-3" />
+          <span>{formatLatestDeliveryDay()}</span>
         </div>
       </CardFooter>
     </Card>
