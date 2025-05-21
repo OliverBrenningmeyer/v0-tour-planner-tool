@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { TransportRegistrationForm } from "./transport-registration-form"
 import { TransportKanbanBoard } from "./transport-kanban-board"
@@ -330,6 +330,9 @@ export default function TransportDashboard() {
   // Active tab state
   const [activeTab, setActiveTab] = useState("kanban")
 
+  // Selected day for registration form
+  const [selectedDay, setSelectedDay] = useState<string | null>(null)
+
   // Toast for notifications
   const { toast } = useToast()
 
@@ -361,6 +364,12 @@ export default function TransportDashboard() {
     },
     enabled: activeTab === "kanban",
   })
+
+  // Handle empty slot click
+  const handleEmptySlotClick = (day: string) => {
+    setSelectedDay(day)
+    setActiveTab("register")
+  }
 
   // Filter transports by selected week
   const getTransportsForSelectedWeek = () => {
@@ -404,6 +413,10 @@ export default function TransportDashboard() {
       description: `${newTransport.customerName} has been scheduled for ${newTransport.deliveryDay}`,
       duration: 2000,
     })
+
+    // Reset selected day and switch back to kanban view
+    setSelectedDay(null)
+    setActiveTab("kanban")
   }
 
   const handleTransportsChange = (updatedTransports: Transport[]) => {
@@ -427,6 +440,13 @@ export default function TransportDashboard() {
 
   // Get transports for the selected week
   const filteredTransports = getTransportsForSelectedWeek()
+
+  // Reset selected day when tab changes
+  useEffect(() => {
+    if (activeTab !== "register") {
+      setSelectedDay(null)
+    }
+  }, [activeTab])
 
   return (
     <div className="container mx-auto py-8">
@@ -465,7 +485,7 @@ export default function TransportDashboard() {
         </div>
       </div>
 
-      <Tabs defaultValue="kanban" className="w-full" onValueChange={setActiveTab}>
+      <Tabs value={activeTab} className="w-full" onValueChange={setActiveTab}>
         <TabsList className="mb-6">
           <TabsTrigger value="kanban">Kanban View</TabsTrigger>
           <TabsTrigger value="register">Register Transport</TabsTrigger>
@@ -483,6 +503,8 @@ export default function TransportDashboard() {
             transports={filteredTransports}
             capacityPerDay={capacityPerDay}
             onTransportsChange={handleTransportsChange}
+            onEmptySlotClick={handleEmptySlotClick}
+            selectedWeek={selectedWeek}
           />
         </TabsContent>
 
@@ -491,6 +513,7 @@ export default function TransportDashboard() {
             onAddTransport={handleAddTransport}
             transports={transports}
             capacityPerDay={capacityPerDay}
+            initialDay={selectedDay}
           />
         </TabsContent>
       </Tabs>

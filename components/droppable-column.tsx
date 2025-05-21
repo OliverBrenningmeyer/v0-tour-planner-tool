@@ -4,14 +4,18 @@ import { useDroppable } from "@dnd-kit/core"
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable"
 import { Badge } from "@/components/ui/badge"
 import { DraggableTransportCard } from "./draggable-transport-card"
+import { EmptySlot } from "./empty-slot"
 import type { DroppableColumnProps } from "@/lib/types"
+import { format } from "date-fns"
 
 export function DroppableColumn({
   day,
+  date,
   transports,
   capacityLimit,
   isAtCapacity,
   onTransportClick,
+  onEmptySlotClick,
 }: DroppableColumnProps) {
   const { setNodeRef, isOver } = useDroppable({
     id: day.toLowerCase(),
@@ -19,6 +23,13 @@ export function DroppableColumn({
 
   const formattedDay = day.charAt(0).toUpperCase() + day.slice(1)
   const transportIds = transports.map((t) => t.id)
+
+  // Calculate number of empty slots to display
+  const emptySlotCount = Math.max(0, capacityLimit - transports.length)
+  const emptySlots = Array.from({ length: emptySlotCount }, (_, i) => i)
+
+  // Format the date
+  const formattedDate = date ? format(date, "MMM d, yyyy") : ""
 
   // Determine column header color based on capacity and drag over state
   const getColumnHeaderClass = () => {
@@ -40,7 +51,10 @@ export function DroppableColumn({
     <div className="flex flex-col h-full">
       <div className={`p-4 rounded-t-lg ${getColumnHeaderClass()}`}>
         <div className="flex justify-between items-center">
-          <h3 className="font-semibold text-lg">{formattedDay}</h3>
+          <div>
+            <h3 className="font-semibold text-lg">{formattedDay}</h3>
+            {date && <p className="text-sm text-gray-600">{formattedDate}</p>}
+          </div>
           <Badge variant={isAtCapacity ? "destructive" : "outline"}>
             {transports.length}/{capacityLimit}
           </Badge>
@@ -53,7 +67,7 @@ export function DroppableColumn({
         }`}
       >
         <SortableContext items={transportIds} strategy={verticalListSortingStrategy}>
-          {transports.length === 0 ? (
+          {transports.length === 0 && emptySlots.length === 0 ? (
             <div className="flex items-center justify-center h-full text-gray-400">No transports scheduled</div>
           ) : (
             <div className="space-y-3">
@@ -64,6 +78,15 @@ export function DroppableColumn({
                   isOverCapacity={index >= capacityLimit}
                   index={index}
                   onClick={onTransportClick ? () => onTransportClick(transport) : undefined}
+                />
+              ))}
+
+              {/* Empty slots */}
+              {emptySlots.map((_, index) => (
+                <EmptySlot
+                  key={`empty-${day}-${index}`}
+                  day={day.toLowerCase()}
+                  onClick={onEmptySlotClick || (() => {})}
                 />
               ))}
             </div>

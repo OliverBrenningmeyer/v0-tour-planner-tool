@@ -20,14 +20,23 @@ import { DroppableColumn } from "./droppable-column"
 import { TransportDetailDialog } from "./transport-detail-dialog"
 import type { Transport } from "@/lib/types"
 import { getTransportsByDay } from "@/lib/dnd-utils"
+import { startOfWeek, addDays } from "date-fns"
 
 interface TransportKanbanBoardProps {
   transports: Transport[]
   capacityPerDay: Record<string, number>
   onTransportsChange: (transports: Transport[]) => void
+  onEmptySlotClick?: (day: string) => void
+  selectedWeek: Date
 }
 
-export function TransportKanbanBoard({ transports, capacityPerDay, onTransportsChange }: TransportKanbanBoardProps) {
+export function TransportKanbanBoard({
+  transports,
+  capacityPerDay,
+  onTransportsChange,
+  onEmptySlotClick,
+  selectedWeek,
+}: TransportKanbanBoardProps) {
   const [activeTransport, setActiveTransport] = useState<Transport | null>(null)
   const [dragError, setDragError] = useState<string | null>(null)
   const [activeColumn, setActiveColumn] = useState<string | null>(null)
@@ -50,6 +59,12 @@ export function TransportKanbanBoard({ transports, capacityPerDay, onTransportsC
   const mondayTransports = getTransportsByDay(transports, "monday")
   const wednesdayTransports = getTransportsByDay(transports, "wednesday")
   const fridayTransports = getTransportsByDay(transports, "friday")
+
+  // Calculate the actual dates for Monday, Wednesday, and Friday of the selected week
+  const weekStart = startOfWeek(selectedWeek, { weekStartsOn: 1 }) // Start on Monday
+  const mondayDate = weekStart // Monday is the start of the week
+  const wednesdayDate = addDays(weekStart, 2) // Wednesday is 2 days after Monday
+  const fridayDate = addDays(weekStart, 4) // Friday is 4 days after Monday
 
   // Check if a day is at capacity
   const isDayAtCapacity = (day: string) => {
@@ -168,26 +183,32 @@ export function TransportKanbanBoard({ transports, capacityPerDay, onTransportsC
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <DroppableColumn
             day="Monday"
+            date={mondayDate}
             transports={mondayTransports}
             capacityLimit={capacityPerDay.monday}
             isAtCapacity={isDayAtCapacity("monday")}
             onTransportClick={handleTransportClick}
+            onEmptySlotClick={onEmptySlotClick}
           />
 
           <DroppableColumn
             day="Wednesday"
+            date={wednesdayDate}
             transports={wednesdayTransports}
             capacityLimit={capacityPerDay.wednesday}
             isAtCapacity={isDayAtCapacity("wednesday")}
             onTransportClick={handleTransportClick}
+            onEmptySlotClick={onEmptySlotClick}
           />
 
           <DroppableColumn
             day="Friday"
+            date={fridayDate}
             transports={fridayTransports}
             capacityLimit={capacityPerDay.friday}
             isAtCapacity={isDayAtCapacity("friday")}
             onTransportClick={handleTransportClick}
+            onEmptySlotClick={onEmptySlotClick}
           />
         </div>
 

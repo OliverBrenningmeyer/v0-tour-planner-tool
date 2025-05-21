@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Building, User, Package, FileText, Loader2, CalendarIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -20,21 +20,23 @@ interface TransportRegistrationFormProps {
   onAddTransport: (transport: Transport) => void
   transports: Transport[]
   capacityPerDay: Record<string, number>
+  initialDay?: string | null
 }
 
 export function TransportRegistrationForm({
   onAddTransport,
   transports,
   capacityPerDay,
+  initialDay = null,
 }: TransportRegistrationFormProps) {
   // Orderer information
   const [ordererBranch] = useState("Berlin Branch") // Prefilled from bexOS login
   const [ordererName] = useState("John Doe") // Prefilled from bexOS login
 
   // Delivery date details
-  const [latestDeliveryDay, setLatestDeliveryDay] = useState("monday")
+  const [latestDeliveryDay, setLatestDeliveryDay] = useState("")
   const [latestDeliveryTimeWindow, setLatestDeliveryTimeWindow] = useState<"Morning" | "Afternoon">("Morning")
-  const [idealDeliveryDay, setIdealDeliveryDay] = useState("monday")
+  const [idealDeliveryDay, setIdealDeliveryDay] = useState(initialDay || "monday")
   const [idealDeliveryTimeWindow, setIdealDeliveryTimeWindow] = useState<"Morning" | "Afternoon">("Morning")
 
   // Customer information
@@ -59,6 +61,13 @@ export function TransportRegistrationForm({
 
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Update ideal delivery day when initialDay changes
+  useEffect(() => {
+    if (initialDay) {
+      setIdealDeliveryDay(initialDay)
+    }
+  }, [initialDay])
 
   // Get the actual delivery date based on the selected day
   const getDeliveryDate = (day: string): Date => {
@@ -96,14 +105,22 @@ export function TransportRegistrationForm({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!customerName || !loadDescription || !latestDeliveryDay) {
+    if (!customerName || !loadDescription) {
       setError("Please fill in all required fields")
       return
     }
 
-    if (isDayAtCapacity(latestDeliveryDay)) {
+    // Use ideal delivery day if latest delivery day is not set
+    const deliveryDay = latestDeliveryDay || idealDeliveryDay
+
+    if (!deliveryDay) {
+      setError("Please select a delivery day")
+      return
+    }
+
+    if (isDayAtCapacity(deliveryDay)) {
       setError(
-        `${latestDeliveryDay.charAt(0).toUpperCase() + latestDeliveryDay.slice(1)} is at capacity (${capacityPerDay[latestDeliveryDay]}). Please select another day.`,
+        `${deliveryDay.charAt(0).toUpperCase() + deliveryDay.slice(1)} is at capacity (${capacityPerDay[deliveryDay]}). Please select another day.`,
       )
       return
     }
@@ -111,7 +128,7 @@ export function TransportRegistrationForm({
     setIsSubmitting(true)
 
     // Get the delivery date based on the selected day
-    const deliveryDate = getDeliveryDate(latestDeliveryDay)
+    const deliveryDate = getDeliveryDate(deliveryDay)
 
     // Simulate API call
     setTimeout(() => {
@@ -123,7 +140,7 @@ export function TransportRegistrationForm({
         ordererName,
 
         // Delivery date details
-        latestDeliveryDay,
+        latestDeliveryDay: latestDeliveryDay || idealDeliveryDay, // Use ideal day as fallback
         latestDeliveryTimeWindow,
         idealDeliveryDay,
         idealDeliveryTimeWindow,
@@ -157,7 +174,7 @@ export function TransportRegistrationForm({
         // Legacy fields
         name: customerName, // Use customer name as transport name for compatibility
         description: loadDescription, // Use load description for compatibility
-        deliveryDay: latestDeliveryDay, // Use latest delivery day for compatibility
+        deliveryDay: deliveryDay, // Use the determined delivery day
         status: "pending",
         vehicleType: unloadingOptions.includes("with crane") ? "Kran" : "LKW", // Determine vehicle type from unloading options
       }
@@ -165,6 +182,8 @@ export function TransportRegistrationForm({
       onAddTransport(newTransport)
 
       // Reset form
+      setLatestDeliveryDay("")
+      setIdealDeliveryDay("monday")
       setCustomerName("")
       setCustomerAddress("")
       setCustomerPhone("")
@@ -183,7 +202,11 @@ export function TransportRegistrationForm({
     <Card className="w-full max-w-3xl mx-auto">
       <CardHeader>
         <CardTitle>Register New Transport</CardTitle>
-        <CardDescription>Schedule a new transport for delivery</CardDescription>
+        <CardDescription>
+          {initialDay
+            ? `Schedule a new transport for ${initialDay.charAt(0).toUpperCase() + initialDay.slice(1)}`
+            : "Schedule a new transport for delivery"}
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -226,8 +249,13 @@ export function TransportRegistrationForm({
               <div className="grid grid-cols-1 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="latestDeliveryDay">Day</Label>
-                  <DeliveryDatePicker value={latestDeliveryDay} onChange={setLatestDeliveryDay} label="latest" />
-                  {isDayAtCapacity(latestDeliveryDay) && (
+                  <DeliveryDatePicker
+                    value={latestDeliveryDay}
+                    onChange={setLatestDeliveryDay}
+                    label="latest"
+                    placeholder="Select a day (optional)"
+                  />
+                  {latestDeliveryDay && isDayAtCapacity(latestDeliveryDay) && (
                     <p className="text-sm text-red-500">Warning: This day is at capacity</p>
                   )}
                 </div>
@@ -257,6 +285,11 @@ export function TransportRegistrationForm({
                 <div className="space-y-2">
                   <Label htmlFor="idealDeliveryDay">Day</Label>
                   <DeliveryDatePicker value={idealDeliveryDay} onChange={setIdealDeliveryDay} label="ideal" />
+                  {initialDay && (
+                    <p className="text-sm text-blue-600">
+                      Pre-filled from selected slot: {initialDay.charAt(0).toUpperCase() + initialDay.slice(1)}
+                    </p>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label>Time Window</Label>

@@ -53,8 +53,10 @@ export interface DraggableTransportCardProps {
 
 export interface DroppableColumnProps {
   day: string
+  date?: Date
   transports: Transport[]
   capacityLimit: number
   isAtCapacity: boolean
   onTransportClick?: (transport: Transport) => void
+  onEmptySlotClick?: (day: string) => void
 }
