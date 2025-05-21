@@ -32,8 +32,8 @@ export function DroppableColumn({
   // Always show one empty slot in addon section if there are any addon transports
   const showAddonEmptySlot = addonTransports.length > 0 || transports.length >= capacityLimit
 
-  // Format the date
-  const formattedDate = date ? format(date, "MMM d, yyyy") : ""
+  // Format the date - ensure we have a valid date
+  const formattedDate = date && !isNaN(date.getTime()) ? format(date, "EEE, MMM d, yyyy") : ""
 
   // Determine column header color based on capacity and drag over state
   const getColumnHeaderClass = () => {
@@ -57,7 +57,7 @@ export function DroppableColumn({
         <div className="flex justify-between items-center">
           <div>
             <h3 className="font-semibold text-lg">{formattedDay}</h3>
-            {date && <p className="text-sm text-gray-600">{formattedDate}</p>}
+            {formattedDate && <p className="text-sm text-gray-600">{formattedDate}</p>}
           </div>
           <Badge variant={isAtCapacity ? "destructive" : "outline"}>
             {transports.length}/{capacityLimit}

@@ -77,10 +77,12 @@ export function TransportKanbanBoard({
   const fridayTransports = getTransportsForDay("friday")
 
   // Calculate the actual dates for Monday, Wednesday, and Friday of the selected week
-  const weekStart = startOfWeek(selectedWeek, { weekStartsOn: 1 }) // Start on Monday
-  const mondayDate = weekStart // Monday is the start of the week
-  const wednesdayDate = addDays(weekStart, 2) // Wednesday is 2 days after Monday
-  const fridayDate = addDays(weekStart, 4) // Friday is 4 days after Monday
+  // Ensure we have a valid date for selectedWeek
+  const validSelectedWeek = selectedWeek && !isNaN(selectedWeek.getTime()) ? selectedWeek : new Date()
+  const weekStart = startOfWeek(validSelectedWeek, { weekStartsOn: 1 }) // Start on Monday
+  const mondayDate = new Date(weekStart) // Monday is the start of the week
+  const wednesdayDate = addDays(new Date(weekStart), 2) // Wednesday is 2 days after Monday
+  const fridayDate = addDays(new Date(weekStart), 4) // Friday is 4 days after Monday
 
   // Check if a day is at capacity
   const isDayAtCapacity = (day: string) => {

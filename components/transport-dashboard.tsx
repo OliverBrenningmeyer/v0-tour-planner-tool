@@ -1,8 +1,6 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { TransportRegistrationForm } from "./transport-registration-form"
 import { TransportKanbanBoard } from "./transport-kanban-board"
 import { WeekSelector } from "./week-selector"
 import type { Transport } from "@/lib/types"
@@ -13,8 +11,10 @@ import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts"
 import { useToast } from "@/hooks/use-toast"
 import { startOfWeek, endOfWeek, parseISO, isWithinInterval } from "date-fns"
 import { fetchTransports, addTransport, updateTransport } from "@/lib/transport-service"
-import { Loader2 } from "lucide-react"
+import { Loader2, Plus } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Button } from "@/components/ui/button"
+import { TransportRegistrationDialog } from "./transport-registration-dialog"
 
 export default function TransportDashboard() {
   // State for transports
@@ -44,10 +44,8 @@ export default function TransportDashboard() {
     friday: 3,
   })
 
-  // Active tab state
-  const [activeTab, setActiveTab] = useState("kanban")
-
-  // Selected day for registration form
+  // Registration dialog state
+  const [registrationDialogOpen, setRegistrationDialogOpen] = useState(false)
   const [selectedDay, setSelectedDay] = useState<string | null>(null)
   const [isAddonSlot, setIsAddonSlot] = useState<boolean>(false)
 
@@ -82,7 +80,7 @@ export default function TransportDashboard() {
   // Register keyboard shortcuts
   useKeyboardShortcuts({
     onUndo: () => {
-      if (canUndo && activeTab === "kanban") {
+      if (canUndo) {
         const success = undo()
         if (success) {
           // Update the actual transports state when undoing
@@ -96,7 +94,7 @@ export default function TransportDashboard() {
       }
     },
     onRedo: () => {
-      if (canRedo && activeTab === "kanban") {
+      if (canRedo) {
         const success = redo()
         if (success) {
           // Update the actual transports state when redoing
@@ -109,14 +107,21 @@ export default function TransportDashboard() {
         }
       }
     },
-    enabled: activeTab === "kanban",
+    enabled: true,
   })
 
-  // Handle empty slot click
+  // Handle empty slot click - open registration dialog with selected day
   const handleEmptySlotClick = (day: string, isAddon = false) => {
     setSelectedDay(day)
     setIsAddonSlot(isAddon)
-    setActiveTab("register")
+    setRegistrationDialogOpen(true)
+  }
+
+  // Handle "Add Transport" button click
+  const handleAddTransportClick = () => {
+    setSelectedDay(null)
+    setIsAddonSlot(false)
+    setRegistrationDialogOpen(true)
   }
 
   // Filter transports by selected week
@@ -169,11 +174,6 @@ export default function TransportDashboard() {
         description: `${newTransport.customerName} has been scheduled for ${newTransport.idealDeliveryDay}`,
         duration: 2000,
       })
-
-      // Reset selected day and switch back to kanban view
-      setSelectedDay(null)
-      setIsAddonSlot(false)
-      setActiveTab("kanban")
     } catch (err) {
       console.error("Failed to add transport:", err)
       toast({
@@ -220,14 +220,6 @@ export default function TransportDashboard() {
   // Get transports for the selected week
   const filteredTransports = getTransportsForSelectedWeek()
 
-  // Reset selected day when tab changes
-  useEffect(() => {
-    if (activeTab !== "register") {
-      setSelectedDay(null)
-      setIsAddonSlot(false)
-    }
-  }, [activeTab])
-
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -242,37 +234,39 @@ export default function TransportDashboard() {
       <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4 mb-8">
         <h1 className="text-3xl font-bold text-gray-800">Transport Management</h1>
         <div className="flex flex-wrap items-center gap-2">
-          {activeTab === "kanban" && (
-            <HistoryControls
-              canUndo={canUndo}
-              canRedo={canRedo}
-              onUndo={() => {
-                const success = undo()
-                if (success) {
-                  setTransports(historyState)
-                  toast({
-                    title: "Action undone",
-                    description: "Previous transport arrangement restored",
-                    duration: 2000,
-                  })
-                }
-              }}
-              onRedo={() => {
-                const success = redo()
-                if (success) {
-                  setTransports(historyState)
-                  toast({
-                    title: "Action redone",
-                    description: "Transport arrangement restored",
-                    duration: 2000,
-                  })
-                }
-              }}
-              historyLength={historyLength}
-              currentPosition={currentPosition}
-            />
-          )}
+          <HistoryControls
+            canUndo={canUndo}
+            canRedo={canRedo}
+            onUndo={() => {
+              const success = undo()
+              if (success) {
+                setTransports(historyState)
+                toast({
+                  title: "Action undone",
+                  description: "Previous transport arrangement restored",
+                  duration: 2000,
+                })
+              }
+            }}
+            onRedo={() => {
+              const success = redo()
+              if (success) {
+                setTransports(historyState)
+                toast({
+                  title: "Action redone",
+                  description: "Transport arrangement restored",
+                  duration: 2000,
+                })
+              }
+            }}
+            historyLength={historyLength}
+            currentPosition={currentPosition}
+          />
           <CapacitySettings capacityPerDay={capacityPerDay} onUpdateCapacity={setCapacityPerDay} />
+          <Button onClick={handleAddTransportClick} className="gap-1">
+            <Plus className="h-4 w-4" />
+            Add Transport
+          </Button>
         </div>
       </div>
 
@@ -283,39 +277,33 @@ export default function TransportDashboard() {
         </Alert>
       )}
 
-      <Tabs value={activeTab} className="w-full" onValueChange={setActiveTab}>
-        <TabsList className="mb-6">
-          <TabsTrigger value="kanban">Kanban View</TabsTrigger>
-          <TabsTrigger value="register">Register Transport</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="kanban" className="space-y-4">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
-            <WeekSelector currentWeek={selectedWeek} onWeekChange={setSelectedWeek} />
-            <div className="text-sm text-muted-foreground">
-              Showing {filteredTransports.length} transports for the selected week
-            </div>
+      <div className="space-y-4">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
+          <WeekSelector currentWeek={selectedWeek} onWeekChange={setSelectedWeek} />
+          <div className="text-sm text-muted-foreground">
+            Showing {filteredTransports.length} transports for the selected week
           </div>
+        </div>
 
-          <TransportKanbanBoard
-            transports={filteredTransports}
-            capacityPerDay={capacityPerDay}
-            onTransportsChange={handleTransportsChange}
-            onEmptySlotClick={handleEmptySlotClick}
-            selectedWeek={selectedWeek}
-          />
-        </TabsContent>
+        <TransportKanbanBoard
+          transports={filteredTransports}
+          capacityPerDay={capacityPerDay}
+          onTransportsChange={handleTransportsChange}
+          onEmptySlotClick={handleEmptySlotClick}
+          selectedWeek={selectedWeek}
+        />
+      </div>
 
-        <TabsContent value="register">
-          <TransportRegistrationForm
-            onAddTransport={handleAddTransport}
-            transports={transports}
-            capacityPerDay={capacityPerDay}
-            initialDay={selectedDay}
-            isAddonSlot={isAddonSlot}
-          />
-        </TabsContent>
-      </Tabs>
+      {/* Transport Registration Dialog */}
+      <TransportRegistrationDialog
+        open={registrationDialogOpen}
+        onOpenChange={setRegistrationDialogOpen}
+        onAddTransport={handleAddTransport}
+        transports={transports}
+        capacityPerDay={capacityPerDay}
+        initialDay={selectedDay}
+        isAddonSlot={isAddonSlot}
+      />
     </div>
   )
 }
