@@ -96,6 +96,33 @@ export interface Database {
         }
         Relationships: []
       }
+      configurations: {
+        Row: {
+          id: string
+          key: string
+          value: Json
+          description: string
+          lastmodifieddate: string
+          lastmodifiedby: string
+        }
+        Insert: {
+          id?: string
+          key: string
+          value: Json
+          description: string
+          lastmodifieddate: string
+          lastmodifiedby: string
+        }
+        Update: {
+          id?: string
+          key?: string
+          value?: Json
+          description?: string
+          lastmodifieddate?: string
+          lastmodifiedby?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

@@ -27,6 +27,7 @@ interface TransportKanbanBoardProps {
   onTransportsChange: (transports: Transport[]) => void
   onEmptySlotClick?: (day: string, isAddon?: boolean) => void
   selectedWeek: Date
+  availableDays?: string[]
 }
 
 export function TransportKanbanBoard({
@@ -35,6 +36,7 @@ export function TransportKanbanBoard({
   onTransportsChange,
   onEmptySlotClick,
   selectedWeek,
+  availableDays = ["monday", "wednesday", "friday"],
 }: TransportKanbanBoardProps) {
   const [activeTransport, setActiveTransport] = useState<Transport | null>(null)
   const [dragError, setDragError] = useState<string | null>(null)
@@ -71,18 +73,26 @@ export function TransportKanbanBoard({
     return { regularTransports, addonTransports }
   }
 
-  // Get transports for each day
-  const mondayTransports = getTransportsForDay("monday")
-  const wednesdayTransports = getTransportsForDay("wednesday")
-  const fridayTransports = getTransportsForDay("friday")
-
-  // Calculate the actual dates for Monday, Wednesday, and Friday of the selected week
+  // Calculate the actual dates for each day of the selected week
   // Ensure we have a valid date for selectedWeek
   const validSelectedWeek = selectedWeek && !isNaN(selectedWeek.getTime()) ? selectedWeek : new Date()
   const weekStart = startOfWeek(validSelectedWeek, { weekStartsOn: 1 }) // Start on Monday
-  const mondayDate = new Date(weekStart) // Monday is the start of the week
-  const wednesdayDate = addDays(new Date(weekStart), 2) // Wednesday is 2 days after Monday
-  const fridayDate = addDays(new Date(weekStart), 4) // Friday is 4 days after Monday
+
+  // Generate dates for each available day
+  const getDayDate = (dayName: string) => {
+    const dayMap: Record<string, number> = {
+      monday: 0,
+      tuesday: 1,
+      wednesday: 2,
+      thursday: 3,
+      friday: 4,
+      saturday: 5,
+      sunday: 6,
+    }
+
+    const dayOffset = dayMap[dayName.toLowerCase()] ?? 0
+    return addDays(new Date(weekStart), dayOffset)
+  }
 
   // Check if a day is at capacity
   const isDayAtCapacity = (day: string) => {
@@ -117,7 +127,7 @@ export function TransportKanbanBoard({
     const { over } = event
     if (over) {
       const overId = String(over.id)
-      if (["monday", "wednesday", "friday"].includes(overId)) {
+      if (availableDays.includes(overId)) {
         setActiveColumn(overId)
       }
     } else {
@@ -146,7 +156,7 @@ export function TransportKanbanBoard({
     let targetColumn: string | null = null
 
     // If dropping directly on a column
-    if (typeof overId === "string" && ["monday", "wednesday", "friday"].includes(overId)) {
+    if (typeof overId === "string" && availableDays.includes(overId)) {
       targetColumn = overId
     }
     // If dropping on another transport, get its column
@@ -197,38 +207,24 @@ export function TransportKanbanBoard({
         onDragEnd={handleDragEnd}
       >
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <DroppableColumn
-            day="Monday"
-            date={mondayDate}
-            transports={mondayTransports.regularTransports}
-            addonTransports={mondayTransports.addonTransports}
-            capacityLimit={capacityPerDay.monday}
-            isAtCapacity={isDayAtCapacity("monday")}
-            onTransportClick={handleTransportClick}
-            onEmptySlotClick={onEmptySlotClick}
-          />
+          {availableDays.map((day) => {
+            const { regularTransports, addonTransports } = getTransportsForDay(day)
+            const dayDate = getDayDate(day)
 
-          <DroppableColumn
-            day="Wednesday"
-            date={wednesdayDate}
-            transports={wednesdayTransports.regularTransports}
-            addonTransports={wednesdayTransports.addonTransports}
-            capacityLimit={capacityPerDay.wednesday}
-            isAtCapacity={isDayAtCapacity("wednesday")}
-            onTransportClick={handleTransportClick}
-            onEmptySlotClick={onEmptySlotClick}
-          />
-
-          <DroppableColumn
-            day="Friday"
-            date={fridayDate}
-            transports={fridayTransports.regularTransports}
-            addonTransports={fridayTransports.addonTransports}
-            capacityLimit={capacityPerDay.friday}
-            isAtCapacity={isDayAtCapacity("friday")}
-            onTransportClick={handleTransportClick}
-            onEmptySlotClick={onEmptySlotClick}
-          />
+            return (
+              <DroppableColumn
+                key={day}
+                day={day}
+                date={dayDate}
+                transports={regularTransports}
+                addonTransports={addonTransports}
+                capacityLimit={capacityPerDay[day] || 0}
+                isAtCapacity={isDayAtCapacity(day)}
+                onTransportClick={handleTransportClick}
+                onEmptySlotClick={onEmptySlotClick}
+              />
+            )
+          })}
         </div>
 
         {/* Drag overlay to show the item being dragged */}

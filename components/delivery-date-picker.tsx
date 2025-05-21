@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { format, isMonday, isWednesday, isFriday } from "date-fns"
+import { format } from "date-fns"
 import { Calendar } from "@/components/ui/calendar"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -13,9 +13,16 @@ interface DeliveryDatePickerProps {
   onChange: (day: string) => void
   label?: string
   disabled?: boolean
+  availableDays?: string[]
 }
 
-export function DeliveryDatePicker({ value, onChange, label, disabled = false }: DeliveryDatePickerProps) {
+export function DeliveryDatePicker({
+  value,
+  onChange,
+  label,
+  disabled = false,
+  availableDays = ["monday", "wednesday", "friday"],
+}: DeliveryDatePickerProps) {
   const [date, setDate] = useState<Date | undefined>(undefined)
   const [open, setOpen] = useState(false)
 
@@ -26,12 +33,14 @@ export function DeliveryDatePicker({ value, onChange, label, disabled = false }:
       const targetDate = new Date(today)
 
       // Find the next occurrence of the selected day
-      while (
-        (value === "monday" && !isMonday(targetDate)) ||
-        (value === "wednesday" && !isWednesday(targetDate)) ||
-        (value === "friday" && !isFriday(targetDate))
-      ) {
+      let daysChecked = 0
+      while (daysChecked < 14) {
+        // Prevent infinite loop
+        const dayName = format(targetDate, "EEEE").toLowerCase()
+        if (dayName === value) break
+
         targetDate.setDate(targetDate.getDate() + 1)
+        daysChecked++
       }
 
       setDate(targetDate)
@@ -40,25 +49,20 @@ export function DeliveryDatePicker({ value, onChange, label, disabled = false }:
     }
   }, [value])
 
-  // Filter available dates to only Monday, Wednesday, Friday
+  // Filter available dates based on configured available days
   const isDateAvailable = (date: Date) => {
-    const day = date.getDay()
-    return day === 1 || day === 3 || day === 5 // Monday, Wednesday, Friday
+    const dayName = format(date, "EEEE").toLowerCase()
+    return availableDays.includes(dayName)
   }
 
   // Convert selected date to day string
   const handleDateChange = (selectedDate: Date | undefined) => {
     if (!selectedDate) return
 
-    const day = selectedDate.getDay()
-    let dayString = ""
+    const dayName = format(selectedDate, "EEEE").toLowerCase()
 
-    if (day === 1) dayString = "monday"
-    else if (day === 3) dayString = "wednesday"
-    else if (day === 5) dayString = "friday"
-
-    if (dayString) {
-      onChange(dayString)
+    if (availableDays.includes(dayName)) {
+      onChange(dayName)
       setDate(selectedDate)
       setOpen(false)
     }
@@ -93,7 +97,8 @@ export function DeliveryDatePicker({ value, onChange, label, disabled = false }:
         />
         <div className="p-3 border-t border-border">
           <p className="text-sm text-muted-foreground">
-            Only Monday, Wednesday, and Friday are available for delivery.
+            Only {availableDays.map((d) => d.charAt(0).toUpperCase() + d.slice(1)).join(", ")} are available for
+            delivery.
           </p>
         </div>
       </PopoverContent>

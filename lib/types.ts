@@ -59,5 +59,15 @@ export interface DroppableColumnProps {
   capacityLimit: number
   isAtCapacity: boolean
   onTransportClick?: (transport: Transport) => void
-  onEmptySlotClick?: (day: string, isAddon?: boolean) => void
+  onEmptySlotClick?: (day: string, isAddonSlot?: boolean) => void
+}
+
+export interface CapacitySettings {
+  [key: string]: number
+}
+
+export interface AppConfig {
+  capacitySettings: CapacitySettings
+  availableDays: string[]
+  timeWindows: string[]
 }

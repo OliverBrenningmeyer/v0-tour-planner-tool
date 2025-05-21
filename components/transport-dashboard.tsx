@@ -3,14 +3,15 @@
 import { useState, useEffect } from "react"
 import { TransportKanbanBoard } from "./transport-kanban-board"
 import { WeekSelector } from "./week-selector"
-import type { Transport } from "@/lib/types"
-import { CapacitySettings } from "./capacity-settings"
+import type { Transport, AppConfig } from "@/lib/types"
+import { SettingsDialog } from "./settings-dialog"
 import { HistoryControls } from "./history-controls"
 import { useHistory } from "@/hooks/use-history"
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts"
 import { useToast } from "@/hooks/use-toast"
 import { startOfWeek, endOfWeek, parseISO, isWithinInterval } from "date-fns"
 import { fetchTransports, addTransport, updateTransport } from "@/lib/transport-service"
+import { fetchConfigurations } from "@/lib/config-service"
 import { Loader2, Plus } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -37,11 +38,15 @@ export default function TransportDashboard() {
   // Week selection state
   const [selectedWeek, setSelectedWeek] = useState<Date>(new Date())
 
-  // Capacity settings
-  const [capacityPerDay, setCapacityPerDay] = useState({
-    monday: 3,
-    wednesday: 2,
-    friday: 3,
+  // Configuration state
+  const [config, setConfig] = useState<AppConfig>({
+    capacitySettings: {
+      monday: 3,
+      wednesday: 2,
+      friday: 3,
+    },
+    availableDays: ["monday", "wednesday", "friday"],
+    timeWindows: ["Morning", "Afternoon"],
   })
 
   // Registration dialog state
@@ -52,21 +57,28 @@ export default function TransportDashboard() {
   // Toast for notifications
   const { toast } = useToast()
 
-  // Fetch transports from Supabase on component mount
+  // Fetch transports and configurations from Supabase on component mount
   useEffect(() => {
-    const loadTransports = async () => {
+    const initialize = async () => {
       try {
         setLoading(true)
-        const data = await fetchTransports()
-        setTransports(data)
-        updateHistoryState(data)
+
+        // Fetch configurations first
+        const configData = await fetchConfigurations()
+        setConfig(configData)
+
+        // Then fetch transports
+        const transportData = await fetchTransports()
+        setTransports(transportData)
+        updateHistoryState(transportData)
+
         setError(null)
       } catch (err) {
-        console.error("Failed to load transports:", err)
-        setError("Failed to load transports. Please try again.")
+        console.error("Failed to initialize:", err)
+        setError("Failed to load data. Please try again.")
         toast({
           title: "Error",
-          description: "Failed to load transports. Please try again.",
+          description: "Failed to load data. Please try again.",
           variant: "destructive",
         })
       } finally {
@@ -74,7 +86,7 @@ export default function TransportDashboard() {
       }
     }
 
-    loadTransports()
+    initialize()
   }, [toast, updateHistoryState])
 
   // Register keyboard shortcuts
@@ -122,6 +134,16 @@ export default function TransportDashboard() {
     setSelectedDay(null)
     setIsAddonSlot(false)
     setRegistrationDialogOpen(true)
+  }
+
+  // Handle configuration update
+  const handleConfigUpdate = (newConfig: AppConfig) => {
+    setConfig(newConfig)
+    toast({
+      title: "Settings updated",
+      description: "System settings have been updated successfully.",
+      duration: 3000,
+    })
   }
 
   // Filter transports by selected week
@@ -224,7 +246,7 @@ export default function TransportDashboard() {
     return (
       <div className="flex items-center justify-center h-screen">
         <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
-        <span className="ml-2 text-lg">Loading transports...</span>
+        <span className="ml-2 text-lg">Loading data...</span>
       </div>
     )
   }
@@ -262,7 +284,7 @@ export default function TransportDashboard() {
             historyLength={historyLength}
             currentPosition={currentPosition}
           />
-          <CapacitySettings capacityPerDay={capacityPerDay} onUpdateCapacity={setCapacityPerDay} />
+          <SettingsDialog onConfigUpdate={handleConfigUpdate} />
           <Button onClick={handleAddTransportClick} className="gap-1">
             <Plus className="h-4 w-4" />
             Add Transport
@@ -287,10 +309,11 @@ export default function TransportDashboard() {
 
         <TransportKanbanBoard
           transports={filteredTransports}
-          capacityPerDay={capacityPerDay}
+          capacityPerDay={config.capacitySettings}
           onTransportsChange={handleTransportsChange}
           onEmptySlotClick={handleEmptySlotClick}
           selectedWeek={selectedWeek}
+          availableDays={config.availableDays}
         />
       </div>
 
@@ -300,9 +323,11 @@ export default function TransportDashboard() {
         onOpenChange={setRegistrationDialogOpen}
         onAddTransport={handleAddTransport}
         transports={transports}
-        capacityPerDay={capacityPerDay}
+        capacityPerDay={config.capacitySettings}
         initialDay={selectedDay}
         isAddonSlot={isAddonSlot}
+        availableDays={config.availableDays}
+        timeWindows={config.timeWindows}
       />
     </div>
   )

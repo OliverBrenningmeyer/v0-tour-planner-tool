@@ -12,6 +12,8 @@ interface TransportRegistrationDialogProps {
   capacityPerDay: Record<string, number>
   initialDay?: string | null
   isAddonSlot?: boolean
+  availableDays?: string[]
+  timeWindows?: string[]
 }
 
 export function TransportRegistrationDialog({
@@ -22,6 +24,8 @@ export function TransportRegistrationDialog({
   capacityPerDay,
   initialDay,
   isAddonSlot,
+  availableDays = ["monday", "wednesday", "friday"],
+  timeWindows = ["Morning", "Afternoon"],
 }: TransportRegistrationDialogProps) {
   const handleAddTransport = (transport: Transport) => {
     onAddTransport(transport)
@@ -38,6 +42,8 @@ export function TransportRegistrationDialog({
           initialDay={initialDay}
           isAddonSlot={isAddonSlot}
           inDialog={true}
+          availableDays={availableDays}
+          timeWindows={timeWindows}
         />
       </DialogContent>
     </Dialog>

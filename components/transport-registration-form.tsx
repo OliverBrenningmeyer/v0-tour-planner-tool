@@ -14,7 +14,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import type { Transport } from "@/lib/types"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { DeliveryDatePicker } from "./delivery-date-picker"
-import { nextMonday, nextWednesday, nextFriday } from "date-fns"
+import { addDays } from "date-fns"
 import { Badge } from "@/components/ui/badge"
 
 interface TransportRegistrationFormProps {
@@ -24,6 +24,8 @@ interface TransportRegistrationFormProps {
   initialDay?: string | null
   isAddonSlot?: boolean
   inDialog?: boolean
+  availableDays?: string[]
+  timeWindows?: string[]
 }
 
 export function TransportRegistrationForm({
@@ -33,16 +35,18 @@ export function TransportRegistrationForm({
   initialDay = null,
   isAddonSlot = false,
   inDialog = false,
+  availableDays = ["monday", "wednesday", "friday"],
+  timeWindows = ["Morning", "Afternoon"],
 }: TransportRegistrationFormProps) {
   // Orderer information
   const [ordererBranch] = useState("Berlin Branch") // Prefilled from bexOS login
   const [ordererName] = useState("John Doe") // Prefilled from bexOS login
 
   // Delivery date details
-  const [latestDeliveryDay, setLatestDeliveryDay] = useState(initialDay || "monday")
-  const [latestDeliveryTimeWindow, setLatestDeliveryTimeWindow] = useState<"Morning" | "Afternoon">("Morning")
-  const [idealDeliveryDay, setIdealDeliveryDay] = useState(initialDay || "monday")
-  const [idealDeliveryTimeWindow, setIdealDeliveryTimeWindow] = useState<"Morning" | "Afternoon">("Morning")
+  const [latestDeliveryDay, setLatestDeliveryDay] = useState(initialDay || availableDays[0] || "monday")
+  const [latestDeliveryTimeWindow, setLatestDeliveryTimeWindow] = useState<string>(timeWindows[0] || "Morning")
+  const [idealDeliveryDay, setIdealDeliveryDay] = useState(initialDay || availableDays[0] || "monday")
+  const [idealDeliveryTimeWindow, setIdealDeliveryTimeWindow] = useState<string>(timeWindows[0] || "Morning")
 
   // Customer information
   const [customerName, setCustomerName] = useState("")
@@ -69,26 +73,32 @@ export function TransportRegistrationForm({
 
   // Update delivery day when initialDay changes
   useEffect(() => {
-    if (initialDay) {
+    if (initialDay && availableDays.includes(initialDay)) {
       setLatestDeliveryDay(initialDay)
       setIdealDeliveryDay(initialDay)
+    } else if (availableDays.length > 0) {
+      setLatestDeliveryDay(availableDays[0])
+      setIdealDeliveryDay(availableDays[0])
     }
-  }, [initialDay])
+  }, [initialDay, availableDays])
 
   // Get the actual delivery date based on the selected day
   const getDeliveryDate = (day: string): Date => {
     const today = new Date()
+    let targetDate = new Date(today)
 
-    switch (day) {
-      case "monday":
-        return nextMonday(today)
-      case "wednesday":
-        return nextWednesday(today)
-      case "friday":
-        return nextFriday(today)
-      default:
-        return today
+    // Find the next occurrence of the selected day
+    let daysChecked = 0
+    while (daysChecked < 14) {
+      // Prevent infinite loop
+      const dayName = targetDate.toLocaleDateString("en-US", { weekday: "lowercase" })
+      if (dayName === day) break
+
+      targetDate = addDays(targetDate, 1)
+      daysChecked++
     }
+
+    return targetDate
   }
 
   // Check if the selected day is at capacity
@@ -140,9 +150,9 @@ export function TransportRegistrationForm({
 
       // Delivery date details
       latestDeliveryDay,
-      latestDeliveryTimeWindow,
+      latestDeliveryTimeWindow: latestDeliveryTimeWindow as "Morning" | "Afternoon",
       idealDeliveryDay,
-      idealDeliveryTimeWindow,
+      idealDeliveryTimeWindow: idealDeliveryTimeWindow as "Morning" | "Afternoon",
       deliveryDate: deliveryDate.toISOString(), // Store the actual date
 
       // Customer information
@@ -179,6 +189,15 @@ export function TransportRegistrationForm({
     }
 
     onAddTransport(newTransport)
+  }
+
+  const renderTimeWindowOptions = () => {
+    return timeWindows.map((timeWindow) => (
+      <div key={timeWindow} className="flex items-center space-x-2">
+        <RadioGroupItem value={timeWindow} id={`ideal-${timeWindow.toLowerCase()}`} />
+        <Label htmlFor={`ideal-${timeWindow.toLowerCase()}`}>{timeWindow}</Label>
+      </div>
+    ))
   }
 
   return (
@@ -244,7 +263,12 @@ export function TransportRegistrationForm({
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="idealDeliveryDay">Day</Label>
-                      <DeliveryDatePicker value={idealDeliveryDay} onChange={setIdealDeliveryDay} label="ideal" />
+                      <DeliveryDatePicker
+                        value={idealDeliveryDay}
+                        onChange={setIdealDeliveryDay}
+                        label="ideal"
+                        availableDays={availableDays}
+                      />
                       {!isAddonSlot && isDayAtCapacity(idealDeliveryDay) && (
                         <p className="text-sm text-red-500">Warning: This day is at capacity</p>
                       )}
@@ -253,17 +277,10 @@ export function TransportRegistrationForm({
                       <Label>Time Window</Label>
                       <RadioGroup
                         value={idealDeliveryTimeWindow}
-                        onValueChange={(value) => setIdealDeliveryTimeWindow(value as "Morning" | "Afternoon")}
+                        onValueChange={setIdealDeliveryTimeWindow}
                         className="flex space-x-4"
                       >
-                        <div className="flex items-center space-x-2">
-                          <RadioGroupItem value="Morning" id="ideal-morning" />
-                          <Label htmlFor="ideal-morning">Morning</Label>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <RadioGroupItem value="Afternoon" id="ideal-afternoon" />
-                          <Label htmlFor="ideal-afternoon">Afternoon</Label>
-                        </div>
+                        {renderTimeWindowOptions()}
                       </RadioGroup>
                     </div>
                   </div>
@@ -274,23 +291,21 @@ export function TransportRegistrationForm({
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="latestDeliveryDay">Day</Label>
-                      <DeliveryDatePicker value={latestDeliveryDay} onChange={setLatestDeliveryDay} label="latest" />
+                      <DeliveryDatePicker
+                        value={latestDeliveryDay}
+                        onChange={setLatestDeliveryDay}
+                        label="latest"
+                        availableDays={availableDays}
+                      />
                     </div>
                     <div className="space-y-2">
                       <Label>Time Window</Label>
                       <RadioGroup
                         value={latestDeliveryTimeWindow}
-                        onValueChange={(value) => setLatestDeliveryTimeWindow(value as "Morning" | "Afternoon")}
+                        onValueChange={setLatestDeliveryTimeWindow}
                         className="flex space-x-4"
                       >
-                        <div className="flex items-center space-x-2">
-                          <RadioGroupItem value="Morning" id="latest-morning" />
-                          <Label htmlFor="latest-morning">Morning</Label>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <RadioGroupItem value="Afternoon" id="latest-afternoon" />
-                          <Label htmlFor="latest-afternoon">Afternoon</Label>
-                        </div>
+                        {renderTimeWindowOptions()}
                       </RadioGroup>
                     </div>
                   </div>
@@ -529,7 +544,12 @@ export function TransportRegistrationForm({
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="idealDeliveryDay">Day</Label>
-                    <DeliveryDatePicker value={idealDeliveryDay} onChange={setIdealDeliveryDay} label="ideal" />
+                    <DeliveryDatePicker
+                      value={idealDeliveryDay}
+                      onChange={setIdealDeliveryDay}
+                      label="ideal"
+                      availableDays={availableDays}
+                    />
                     {!isAddonSlot && isDayAtCapacity(idealDeliveryDay) && (
                       <p className="text-sm text-red-500">Warning: This day is at capacity</p>
                     )}
@@ -538,17 +558,10 @@ export function TransportRegistrationForm({
                     <Label>Time Window</Label>
                     <RadioGroup
                       value={idealDeliveryTimeWindow}
-                      onValueChange={(value) => setIdealDeliveryTimeWindow(value as "Morning" | "Afternoon")}
+                      onValueChange={setIdealDeliveryTimeWindow}
                       className="flex space-x-4"
                     >
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="Morning" id="ideal-morning" />
-                        <Label htmlFor="ideal-morning">Morning</Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="Afternoon" id="ideal-afternoon" />
-                        <Label htmlFor="ideal-afternoon">Afternoon</Label>
-                      </div>
+                      {renderTimeWindowOptions()}
                     </RadioGroup>
                   </div>
                 </div>
@@ -559,23 +572,21 @@ export function TransportRegistrationForm({
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="latestDeliveryDay">Day</Label>
-                    <DeliveryDatePicker value={latestDeliveryDay} onChange={setLatestDeliveryDay} label="latest" />
+                    <DeliveryDatePicker
+                      value={latestDeliveryDay}
+                      onChange={setLatestDeliveryDay}
+                      label="latest"
+                      availableDays={availableDays}
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label>Time Window</Label>
                     <RadioGroup
                       value={latestDeliveryTimeWindow}
-                      onValueChange={(value) => setLatestDeliveryTimeWindow(value as "Morning" | "Afternoon")}
+                      onValueChange={setLatestDeliveryTimeWindow}
                       className="flex space-x-4"
                     >
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="Morning" id="latest-morning" />
-                        <Label htmlFor="latest-morning">Morning</Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="Afternoon" id="latest-afternoon" />
-                        <Label htmlFor="latest-afternoon">Afternoon</Label>
-                      </div>
+                      {renderTimeWindowOptions()}
                     </RadioGroup>
                   </div>
                 </div>
