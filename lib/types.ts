@@ -29,9 +29,6 @@ export interface Transport {
   documentUrl?: string
   documentName?: string
 
-  // Organization and user information
-  userorgId: string // Added field for organization ID
-
   // Hidden fields
   createdDate: string
   createdBy: string

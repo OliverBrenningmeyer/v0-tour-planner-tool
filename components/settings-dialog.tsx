@@ -19,16 +19,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { useToast } from "@/hooks/use-toast"
-import type { AppConfig } from "@/lib/types"
-import type { UserData } from "@/lib/user-context"
+import type { AppConfig, CapacitySettings } from "@/lib/types"
 import { fetchConfigurations, updateAllConfigurations } from "@/lib/config-service"
 
 interface SettingsDialogProps {
   onConfigUpdate: (config: AppConfig) => void
-  userData: UserData
 }
 
-export function SettingsDialog({ onConfigUpdate, userData }: SettingsDialogProps) {
+export function SettingsDialog({ onConfigUpdate }: SettingsDialogProps) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -36,11 +34,13 @@ export function SettingsDialog({ onConfigUpdate, userData }: SettingsDialogProps
   const [activeTab, setActiveTab] = useState("capacity")
 
   // Configuration state
-  const [capacitySettings, setCapacitySettings] = useState<Record<string, number>>({})
+  const [capacitySettings, setCapacitySettings] = useState<CapacitySettings>({})
   const [availableDays, setAvailableDays] = useState<string[]>([])
+  const [timeWindows, setTimeWindows] = useState<string[]>([])
 
   // New item inputs
   const [newDay, setNewDay] = useState("")
+  const [newTimeWindow, setNewTimeWindow] = useState("")
 
   const { toast } = useToast()
 
@@ -55,9 +55,10 @@ export function SettingsDialog({ onConfigUpdate, userData }: SettingsDialogProps
     try {
       setLoading(true)
       setError(null)
-      const config = await fetchConfigurations(userData.userorgId)
+      const config = await fetchConfigurations()
       setCapacitySettings(config.capacitySettings)
       setAvailableDays(config.availableDays)
+      setTimeWindows(config.timeWindows)
     } catch (err) {
       console.error("Failed to load configurations:", err)
       setError("Failed to load configurations. Please try again.")
@@ -87,13 +88,20 @@ export function SettingsDialog({ onConfigUpdate, userData }: SettingsDialogProps
         return
       }
 
+      // Validate time windows
+      if (timeWindows.length === 0) {
+        setError("At least one time window must be available")
+        setSaving(false)
+        return
+      }
+
       const config: AppConfig = {
         capacitySettings,
         availableDays,
-        timeWindows: ["Morning", "Afternoon"], // Default values
+        timeWindows,
       }
 
-      await updateAllConfigurations(config, userData.userorgId, userData.email || "System")
+      await updateAllConfigurations(config)
       onConfigUpdate(config)
 
       toast({
@@ -113,10 +121,10 @@ export function SettingsDialog({ onConfigUpdate, userData }: SettingsDialogProps
 
   const handleCapacityChange = (day: string, value: string) => {
     const numValue = Number.parseInt(value, 10) || 0
-    setCapacitySettings((prev) => ({
-      ...prev,
+    setCapacitySettings({
+      ...capacitySettings,
       [day]: numValue,
-    }))
+    })
   }
 
   const handleAddDay = () => {
@@ -134,10 +142,10 @@ export function SettingsDialog({ onConfigUpdate, userData }: SettingsDialogProps
     }
 
     setAvailableDays([...availableDays, formattedDay])
-    setCapacitySettings((prev) => ({
-      ...prev,
+    setCapacitySettings({
+      ...capacitySettings,
       [formattedDay]: 3, // Default capacity
-    }))
+    })
     setNewDay("")
   }
 
@@ -148,6 +156,26 @@ export function SettingsDialog({ onConfigUpdate, userData }: SettingsDialogProps
     const newCapacitySettings = { ...capacitySettings }
     delete newCapacitySettings[day]
     setCapacitySettings(newCapacitySettings)
+  }
+
+  const handleAddTimeWindow = () => {
+    if (!newTimeWindow.trim()) return
+
+    if (timeWindows.includes(newTimeWindow)) {
+      toast({
+        title: "Time window already exists",
+        description: `${newTimeWindow} is already in the list of time windows.`,
+        variant: "destructive",
+      })
+      return
+    }
+
+    setTimeWindows([...timeWindows, newTimeWindow])
+    setNewTimeWindow("")
+  }
+
+  const handleRemoveTimeWindow = (timeWindow: string) => {
+    setTimeWindows(timeWindows.filter((tw) => tw !== timeWindow))
   }
 
   return (
@@ -162,10 +190,7 @@ export function SettingsDialog({ onConfigUpdate, userData }: SettingsDialogProps
         <DialogHeader>
           <DialogTitle>System Settings</DialogTitle>
           <DialogDescription>
-            Configure capacity and available days for transport scheduling.
-            <Badge className="ml-2" variant="outline">
-              Organization: {userData.userorgId}
-            </Badge>
+            Configure capacity, available days, and time windows for transport scheduling.
           </DialogDescription>
         </DialogHeader>
 
@@ -183,9 +208,10 @@ export function SettingsDialog({ onConfigUpdate, userData }: SettingsDialogProps
           </div>
         ) : (
           <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-4">
-            <TabsList className="grid grid-cols-2 mb-4">
+            <TabsList className="grid grid-cols-3 mb-4">
               <TabsTrigger value="capacity">Capacity Settings</TabsTrigger>
               <TabsTrigger value="days">Available Days</TabsTrigger>
+              <TabsTrigger value="timeWindows">Time Windows</TabsTrigger>
             </TabsList>
 
             <TabsContent value="capacity" className="space-y-4">
@@ -251,12 +277,7 @@ export function SettingsDialog({ onConfigUpdate, userData }: SettingsDialogProps
                       placeholder="Add new day (e.g., monday, tuesday)"
                       value={newDay}
                       onChange={(e) => setNewDay(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault()
-                          handleAddDay()
-                        }
-                      }}
+                      onKeyDown={(e) => e.key === "Enter" && handleAddDay()}
                     />
                     <Button type="button" onClick={handleAddDay} size="sm">
                       <Plus className="h-4 w-4 mr-1" />
@@ -270,6 +291,59 @@ export function SettingsDialog({ onConfigUpdate, userData }: SettingsDialogProps
                       <li>Day names should be lowercase (e.g., monday, tuesday)</li>
                       <li>Each day added will get a default capacity of 3</li>
                       <li>You can adjust capacities in the Capacity Settings tab</li>
+                    </ul>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="timeWindows" className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Time Windows</CardTitle>
+                  <CardDescription>Configure available time windows for delivery scheduling.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    {timeWindows.map((timeWindow) => (
+                      <Badge key={timeWindow} variant="secondary" className="flex items-center gap-1 py-1 px-3">
+                        {timeWindow}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-4 w-4 ml-1 text-muted-foreground hover:text-destructive"
+                          onClick={() => handleRemoveTimeWindow(timeWindow)}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </Badge>
+                    ))}
+                    {timeWindows.length === 0 && (
+                      <div className="text-muted-foreground">
+                        No time windows configured. Add your first time window below.
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <Input
+                      placeholder="Add new time window (e.g., Morning, Afternoon)"
+                      value={newTimeWindow}
+                      onChange={(e) => setNewTimeWindow(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && handleAddTimeWindow()}
+                    />
+                    <Button type="button" onClick={handleAddTimeWindow} size="sm">
+                      <Plus className="h-4 w-4 mr-1" />
+                      Add
+                    </Button>
+                  </div>
+
+                  <div className="text-sm text-muted-foreground mt-2">
+                    <p>Examples of time windows:</p>
+                    <ul className="list-disc list-inside ml-2">
+                      <li>Morning (8:00 - 12:00)</li>
+                      <li>Afternoon (12:00 - 17:00)</li>
+                      <li>Evening (17:00 - 20:00)</li>
                     </ul>
                   </div>
                 </CardContent>

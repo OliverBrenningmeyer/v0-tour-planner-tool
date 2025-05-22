@@ -3,7 +3,6 @@
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { TransportRegistrationForm } from "./transport-registration-form"
 import type { Transport } from "@/lib/types"
-import type { UserData } from "@/lib/user-context"
 
 interface TransportRegistrationDialogProps {
   open: boolean
@@ -15,7 +14,6 @@ interface TransportRegistrationDialogProps {
   isAddonSlot?: boolean
   availableDays?: string[]
   timeWindows?: string[]
-  userData: UserData
 }
 
 export function TransportRegistrationDialog({
@@ -26,18 +24,17 @@ export function TransportRegistrationDialog({
   capacityPerDay,
   initialDay,
   isAddonSlot,
-  availableDays,
-  timeWindows,
-  userData,
+  availableDays = ["monday", "wednesday", "friday"],
+  timeWindows = ["Morning", "Afternoon"],
 }: TransportRegistrationDialogProps) {
   const handleAddTransport = (transport: Transport) => {
     onAddTransport(transport)
-    onOpenChange(false)
+    onOpenChange(false) // Close the dialog after adding
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto p-0">
         <TransportRegistrationForm
           onAddTransport={handleAddTransport}
           transports={transports}
@@ -47,7 +44,6 @@ export function TransportRegistrationDialog({
           inDialog={true}
           availableDays={availableDays}
           timeWindows={timeWindows}
-          userData={userData}
         />
       </DialogContent>
     </Dialog>
