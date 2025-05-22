@@ -41,19 +41,17 @@ export function TransportTableView({
   }
 
   // Group transports by day and split into regular and additional slots
-  const transportsByDay = availableDays.reduce<Record<string, { regular: Transport[]; additional: Transport[] }>>(
-    (acc, day) => {
-      const dayTransports = transports.filter((t) => t.idealDeliveryDay === day)
-      const capacityLimit = capacityPerDay[day] || 0
+  const transportsByDay: Record<string, { regular: Transport[]; additional: Transport[] }> = {}
 
-      acc[day] = {
-        regular: dayTransports.slice(0, capacityLimit),
-        additional: dayTransports.slice(capacityLimit),
-      }
-      return acc
-    },
-    {},
-  )
+  for (const day of availableDays) {
+    const dayTransports = transports.filter((t) => t.idealDeliveryDay === day)
+    const capacityLimit = capacityPerDay[day] || 0
+
+    transportsByDay[day] = {
+      regular: dayTransports.slice(0, capacityLimit),
+      additional: dayTransports.slice(capacityLimit),
+    }
+  }
 
   // Calculate the actual dates for each day of the selected week
   const weekStart = startOfWeek(selectedWeek, { weekStartsOn: 1 }) // Start on Monday
@@ -76,27 +74,25 @@ export function TransportTableView({
 
   // Get the vehicle type icon
   const getVehicleIcon = (vehicleType: string) => {
-    switch (vehicleType) {
-      case "LKW":
-        return <Truck className="h-4 w-4 text-blue-500" />
-      case "Kran":
-        return <Crane className="h-4 w-4 text-amber-500" />
-      default:
-        return <Truck className="h-4 w-4" />
+    if (vehicleType === "LKW") {
+      return <Truck className="h-4 w-4 text-blue-500" />
+    } else if (vehicleType === "Kran") {
+      return <Crane className="h-4 w-4 text-amber-500" />
+    } else {
+      return <Truck className="h-4 w-4" />
     }
   }
 
   // Get the size icon
   const getSizeIcon = (size: string) => {
-    switch (size) {
-      case "S":
-        return <Package className="h-4 w-4 text-blue-500" />
-      case "M":
-        return <Package className="h-4 w-4 text-green-500" />
-      case "L":
-        return <Package className="h-4 w-4 text-purple-500" />
-      default:
-        return <Package className="h-4 w-4" />
+    if (size === "S") {
+      return <Package className="h-4 w-4 text-blue-500" />
+    } else if (size === "M") {
+      return <Package className="h-4 w-4 text-green-500" />
+    } else if (size === "L") {
+      return <Package className="h-4 w-4 text-purple-500" />
+    } else {
+      return <Package className="h-4 w-4" />
     }
   }
 
