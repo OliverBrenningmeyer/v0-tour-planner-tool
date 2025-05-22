@@ -10,7 +10,6 @@ import { cn } from "@/lib/utils"
 import type { Transport } from "@/lib/types"
 import { Crane } from "./icons/crane"
 
-// Update the TransportTableViewProps interface to include the selectedWeek
 interface TransportTableViewProps {
   transports: Transport[]
   capacityPerDay: Record<string, number>

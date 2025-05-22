@@ -137,12 +137,14 @@ export const updateCapacitySettings = async (
       throw error
     }
 
+    // Create update data object
     const updateData: Record<string, any> = {
       value: capacitySettings,
       lastmodifieddate: new Date().toISOString(),
       lastmodifiedby: user,
     }
 
+    // Add userorgid if the column exists
     if (userorgIdColumnExists) {
       updateData.userorgid = userorgId
     }
@@ -166,6 +168,7 @@ export const updateCapacitySettings = async (
         lastmodifiedby: user,
       }
 
+      // Add userorgid if the column exists
       if (userorgIdColumnExists) {
         insertData.userorgid = userorgId
       }
@@ -202,12 +205,14 @@ export const updateAvailableDays = async (
       throw error
     }
 
+    // Create update data object
     const updateData: Record<string, any> = {
       value: availableDays,
       lastmodifieddate: new Date().toISOString(),
       lastmodifiedby: user,
     }
 
+    // Add userorgid if the column exists
     if (userorgIdColumnExists) {
       updateData.userorgid = userorgId
     }
@@ -231,6 +236,7 @@ export const updateAvailableDays = async (
         lastmodifiedby: user,
       }
 
+      // Add userorgid if the column exists
       if (userorgIdColumnExists) {
         insertData.userorgid = userorgId
       }
@@ -266,12 +272,14 @@ export const updateTimeWindows = async (timeWindows: string[], userorgId: string
       throw error
     }
 
+    // Create update data object
     const updateData: Record<string, any> = {
       value: windowsToSave,
       lastmodifieddate: new Date().toISOString(),
       lastmodifiedby: user,
     }
 
+    // Add userorgid if the column exists
     if (userorgIdColumnExists) {
       updateData.userorgid = userorgId
     }
@@ -295,6 +303,7 @@ export const updateTimeWindows = async (timeWindows: string[], userorgId: string
         lastmodifiedby: user,
       }
 
+      // Add userorgid if the column exists
       if (userorgIdColumnExists) {
         insertData.userorgid = userorgId
       }

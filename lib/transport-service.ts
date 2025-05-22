@@ -7,7 +7,7 @@ let userorgIdColumnExists = false
 // Map our Transport type to the database schema (camelCase to snake_case)
 const mapTransportToDbFormat = (transport: Transport) => {
   // Create the base object with all fields
-  const dbTransport: any = {
+  const dbTransport: Record<string, any> = {
     id: transport.id || undefined,
     name: transport.name,
     description: transport.description,
@@ -116,11 +116,8 @@ export const addTransport = async (transport: Omit<Transport, "id">): Promise<Tr
     // If we don't know if the column exists yet, try with it first
     if (!userorgIdColumnExists && transport.userorgId) {
       try {
-        const { data, error } = await supabase
-          .from("transports")
-          .insert(mapTransportToDbFormat({ ...transport, userorgId: transport.userorgId } as Transport))
-          .select()
-          .single()
+        const transportToInsert = mapTransportToDbFormat({ ...transport, id: "" } as Transport)
+        const { data, error } = await supabase.from("transports").insert(transportToInsert).select().single()
 
         if (!error) {
           // If this succeeds, the column exists
@@ -150,11 +147,8 @@ export const addTransport = async (transport: Omit<Transport, "id">): Promise<Tr
     const transportData = { ...transport } as any
     delete transportData.userorgId // Remove the userorgId field
 
-    const { data, error } = await supabase
-      .from("transports")
-      .insert(mapTransportToDbFormat(transportData as Transport))
-      .select()
-      .single()
+    const transportToInsert = mapTransportToDbFormat(transportData as Transport)
+    const { data, error } = await supabase.from("transports").insert(transportToInsert).select().single()
 
     if (error) {
       console.error("Error adding transport:", error)
@@ -180,9 +174,10 @@ export const updateTransport = async (transport: Transport): Promise<Transport> 
     // If we don't know if the column exists yet, try with it first
     if (!userorgIdColumnExists && transport.userorgId) {
       try {
+        const transportToUpdate = mapTransportToDbFormat(transport)
         const { data, error } = await supabase
           .from("transports")
-          .update(mapTransportToDbFormat({ ...transport, userorgId: transport.userorgId }))
+          .update(transportToUpdate)
           .eq("id", transport.id)
           .select()
           .single()
@@ -215,9 +210,10 @@ export const updateTransport = async (transport: Transport): Promise<Transport> 
     const transportData = { ...transport } as any
     delete transportData.userorgId // Remove the userorgId field
 
+    const transportToUpdate = mapTransportToDbFormat(transportData as Transport)
     const { data, error } = await supabase
       .from("transports")
-      .update(mapTransportToDbFormat(transportData as Transport))
+      .update(transportToUpdate)
       .eq("id", transport.id)
       .select()
       .single()
