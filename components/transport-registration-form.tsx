@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Checkbox } from "@/components/ui/checkbox"
 import type { Transport } from "@/lib/types"
+import type { UserData } from "@/lib/user-context"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { DeliveryDatePicker } from "./delivery-date-picker"
 import { addDays } from "date-fns"
@@ -26,6 +27,7 @@ interface TransportRegistrationFormProps {
   inDialog?: boolean
   availableDays?: string[]
   timeWindows?: string[]
+  userData: UserData
 }
 
 export function TransportRegistrationForm({
@@ -37,10 +39,11 @@ export function TransportRegistrationForm({
   inDialog = false,
   availableDays = ["monday", "wednesday", "friday"],
   timeWindows = ["Morning", "Afternoon"],
+  userData,
 }: TransportRegistrationFormProps) {
   // Orderer information
-  const [ordererBranch] = useState("Berlin Branch") // Prefilled from bexOS login
-  const [ordererName] = useState("John Doe") // Prefilled from bexOS login
+  const [ordererBranch] = useState(userData.userorgId) // Use organization ID from userData
+  const [ordererName] = useState(userData.email) // Use email from userData
 
   // Delivery date details
   const [latestDeliveryDay, setLatestDeliveryDay] = useState(initialDay || availableDays[0] || "monday")
@@ -173,11 +176,14 @@ export function TransportRegistrationForm({
       documentName: documentFile?.name,
       documentUrl: documentFile ? URL.createObjectURL(documentFile) : undefined,
 
+      // Organization ID
+      userorgId: userData.userorgId,
+
       // Hidden fields
       createdDate: new Date().toISOString(),
-      createdBy: ordererName,
+      createdBy: userData.email,
       lastModifiedDate: new Date().toISOString(),
-      lastModifiedBy: ordererName,
+      lastModifiedBy: userData.email,
       creationChannel: "bexOS form",
 
       // Legacy fields
@@ -210,16 +216,21 @@ export function TransportRegistrationForm({
                 <CardTitle>Register New Transport</CardTitle>
                 <CardDescription>Schedule a new transport for delivery</CardDescription>
               </div>
-              {isAddonSlot && (
-                <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
-                  Additional Slot
+              <div className="flex flex-col gap-1 items-end">
+                {isAddonSlot && (
+                  <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
+                    Additional Slot
+                  </Badge>
+                )}
+                {initialDay && (
+                  <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                    {initialDay.charAt(0).toUpperCase() + initialDay.slice(1)}
+                  </Badge>
+                )}
+                <Badge variant="outline" className="bg-gray-100 text-gray-700">
+                  Org: {userData.userorgId}
                 </Badge>
-              )}
-              {initialDay && (
-                <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-                  {initialDay.charAt(0).toUpperCase() + initialDay.slice(1)}
-                </Badge>
-              )}
+              </div>
             </div>
           </CardHeader>
           <CardContent>
@@ -239,14 +250,14 @@ export function TransportRegistrationForm({
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="ordererBranch">Branch</Label>
+                    <Label htmlFor="ordererBranch">Organization</Label>
                     <Input id="ordererBranch" value={ordererBranch} disabled className="bg-gray-50" />
-                    <p className="text-xs text-muted-foreground">Prefilled from bexOS login</p>
+                    <p className="text-xs text-muted-foreground">From BexApp platform</p>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="ordererName">Name</Label>
+                    <Label htmlFor="ordererName">User</Label>
                     <Input id="ordererName" value={ordererName} disabled className="bg-gray-50" />
-                    <p className="text-xs text-muted-foreground">Prefilled from bexOS login</p>
+                    <p className="text-xs text-muted-foreground">From BexApp platform</p>
                   </div>
                 </div>
               </div>
@@ -490,7 +501,7 @@ export function TransportRegistrationForm({
                 <h2 className="text-2xl font-semibold">Register New Transport</h2>
                 <p className="text-sm text-muted-foreground">Schedule a new transport for delivery</p>
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-col gap-1 items-end">
                 {isAddonSlot && (
                   <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
                     Additional Slot
@@ -501,6 +512,9 @@ export function TransportRegistrationForm({
                     {initialDay.charAt(0).toUpperCase() + initialDay.slice(1)}
                   </Badge>
                 )}
+                <Badge variant="outline" className="bg-gray-100 text-gray-700">
+                  Org: {userData.userorgId}
+                </Badge>
               </div>
             </div>
           </div>
@@ -520,14 +534,14 @@ export function TransportRegistrationForm({
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="ordererBranch">Branch</Label>
+                  <Label htmlFor="ordererBranch">Organization</Label>
                   <Input id="ordererBranch" value={ordererBranch} disabled className="bg-gray-50" />
-                  <p className="text-xs text-muted-foreground">Prefilled from bexOS login</p>
+                  <p className="text-xs text-muted-foreground">From BexApp platform</p>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="ordererName">Name</Label>
+                  <Label htmlFor="ordererName">User</Label>
                   <Input id="ordererName" value={ordererName} disabled className="bg-gray-50" />
-                  <p className="text-xs text-muted-foreground">Prefilled from bexOS login</p>
+                  <p className="text-xs text-muted-foreground">From BexApp platform</p>
                 </div>
               </div>
             </div>

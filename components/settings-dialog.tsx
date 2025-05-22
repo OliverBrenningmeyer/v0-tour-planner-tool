@@ -20,13 +20,15 @@ import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { useToast } from "@/hooks/use-toast"
 import type { AppConfig, CapacitySettings } from "@/lib/types"
+import type { UserData } from "@/lib/user-context"
 import { fetchConfigurations, updateAllConfigurations } from "@/lib/config-service"
 
 interface SettingsDialogProps {
   onConfigUpdate: (config: AppConfig) => void
+  userData: UserData
 }
 
-export function SettingsDialog({ onConfigUpdate }: SettingsDialogProps) {
+export function SettingsDialog({ onConfigUpdate, userData }: SettingsDialogProps) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -55,7 +57,7 @@ export function SettingsDialog({ onConfigUpdate }: SettingsDialogProps) {
     try {
       setLoading(true)
       setError(null)
-      const config = await fetchConfigurations()
+      const config = await fetchConfigurations(userData.userorgId)
       setCapacitySettings(config.capacitySettings)
       setAvailableDays(config.availableDays)
       setTimeWindows(config.timeWindows)
@@ -101,7 +103,7 @@ export function SettingsDialog({ onConfigUpdate }: SettingsDialogProps) {
         timeWindows,
       }
 
-      await updateAllConfigurations(config)
+      await updateAllConfigurations(config, userData.userorgId, userData.email || "System")
       onConfigUpdate(config)
 
       toast({
@@ -191,6 +193,9 @@ export function SettingsDialog({ onConfigUpdate }: SettingsDialogProps) {
           <DialogTitle>System Settings</DialogTitle>
           <DialogDescription>
             Configure capacity, available days, and time windows for transport scheduling.
+            <Badge className="ml-2" variant="outline">
+              Organization: {userData.userorgId}
+            </Badge>
           </DialogDescription>
         </DialogHeader>
 

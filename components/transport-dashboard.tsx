@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { TransportKanbanBoard } from "./transport-kanban-board"
+import { TransportTableView } from "./transport-table-view"
 import { WeekSelector } from "./week-selector"
 import type { Transport, AppConfig } from "@/lib/types"
 import { SettingsDialog } from "./settings-dialog"
@@ -12,16 +13,29 @@ import { useToast } from "@/hooks/use-toast"
 import { startOfWeek, endOfWeek, parseISO, isWithinInterval } from "date-fns"
 import { fetchTransports, addTransport, updateTransport } from "@/lib/transport-service"
 import { fetchConfigurations } from "@/lib/config-service"
-import { Loader2, Plus } from "lucide-react"
+import { Loader2, Plus, AlertTriangle, LayoutGrid, List } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { TransportRegistrationDialog } from "./transport-registration-dialog"
+import { TransportDetailDialog } from "./transport-detail-dialog"
+import { useUser } from "@/lib/user-context"
+import { UserDataDialog } from "./user-data-dialog"
 
 export default function TransportDashboard() {
+  // Get user data from context
+  const { userData, isLoading: isUserLoading, isManualEntry, setUserDataManually } = useUser()
+
+  // State for showing the user data dialog
+  const [showUserDataDialog, setShowUserDataDialog] = useState(false)
+
   // State for transports
   const [transports, setTransports] = useState<Transport[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  // View mode state (kanban or table)
+  const [viewMode, setViewMode] = useState<"kanban" | "table">("kanban")
 
   // Use history hook for undo/redo
   const {
@@ -54,23 +68,58 @@ export default function TransportDashboard() {
   const [selectedDay, setSelectedDay] = useState<string | null>(null)
   const [isAddonSlot, setIsAddonSlot] = useState<boolean>(false)
 
+  // Detail dialog state
+  const [detailDialogOpen, setDetailDialogOpen] = useState(false)
+  const [selectedTransport, setSelectedTransport] = useState<Transport | null>(null)
+
   // Toast for notifications
   const { toast } = useToast()
+
+  // Show user data dialog if needed
+  useEffect(() => {
+    if (!isUserLoading && !userData && !isManualEntry) {
+      setShowUserDataDialog(true)
+    }
+  }, [isUserLoading, userData, isManualEntry])
+
+  // Handle saving user data from dialog
+  const handleSaveUserData = (data: typeof userData) => {
+    setUserDataManually(data)
+    setShowUserDataDialog(false)
+    toast({
+      title: "User data saved",
+      description: `Logged in as ${data.email} (${data.userorgId})`,
+      duration: 3000,
+    })
+  }
 
   // Fetch transports and configurations from Supabase on component mount
   useEffect(() => {
     const initialize = async () => {
+      // Wait for user data to be available
+      if (isUserLoading || !userData) return
+
       try {
         setLoading(true)
 
-        // Fetch configurations first
-        const configData = await fetchConfigurations()
-        setConfig(configData)
+        // Fetch configurations first - use default if this fails
+        try {
+          const configData = await fetchConfigurations(userData.userorgId)
+          setConfig(configData)
+        } catch (configErr) {
+          console.warn("Failed to load configurations, using defaults:", configErr)
+          // Keep using the default config
+        }
 
         // Then fetch transports
-        const transportData = await fetchTransports()
-        setTransports(transportData)
-        updateHistoryState(transportData)
+        const transportData = await fetchTransports(userData.userorgId)
+
+        // Filter transports by userorgId in memory if needed
+        // This is a fallback in case the database doesn't support filtering
+        const filteredTransports = transportData.filter((t) => !t.userorgId || t.userorgId === userData.userorgId)
+
+        setTransports(filteredTransports)
+        updateHistoryState(filteredTransports)
 
         setError(null)
       } catch (err) {
@@ -87,7 +136,7 @@ export default function TransportDashboard() {
     }
 
     initialize()
-  }, [toast, updateHistoryState])
+  }, [toast, updateHistoryState, userData, isUserLoading])
 
   // Register keyboard shortcuts
   useKeyboardShortcuts({
@@ -130,10 +179,16 @@ export default function TransportDashboard() {
   }
 
   // Handle "Add Transport" button click
-  const handleAddTransportClick = () => {
-    setSelectedDay(null)
+  const handleAddTransportClick = (day?: string) => {
+    setSelectedDay(day || null)
     setIsAddonSlot(false)
     setRegistrationDialogOpen(true)
+  }
+
+  // Handle transport click to open detail dialog
+  const handleTransportClick = (transport: Transport) => {
+    setSelectedTransport(transport)
+    setDetailDialogOpen(true)
   }
 
   // Handle configuration update
@@ -165,16 +220,26 @@ export default function TransportDashboard() {
   }
 
   const handleAddTransport = async (newTransport: Omit<Transport, "id">) => {
+    if (!userData) {
+      toast({
+        title: "Error",
+        description: "User data not available. Cannot add transport.",
+        variant: "destructive",
+      })
+      return
+    }
+
     try {
       // Add metadata
       const now = new Date().toISOString()
-      const currentUser = "Current User" // In a real app, this would come from authentication
+      const currentUser = userData.email || "Unknown User"
 
       // Make sure idealDeliveryDay and deliveryDay are in sync
       const transportWithMetadata = {
         ...newTransport,
         id: "", // Will be set by Supabase
         deliveryDay: newTransport.idealDeliveryDay, // Set deliveryDay to match idealDeliveryDay
+        userorgId: userData.userorgId, // Add organization ID
         createdDate: now,
         createdBy: currentUser,
         lastModifiedDate: now,
@@ -207,6 +272,15 @@ export default function TransportDashboard() {
   }
 
   const handleTransportsChange = async (updatedTransports: Transport[]) => {
+    if (!userData) {
+      toast({
+        title: "Error",
+        description: "User data not available. Cannot update transport.",
+        variant: "destructive",
+      })
+      return
+    }
+
     try {
       // Find the transport that changed
       const changedTransport = updatedTransports.find((newT) => {
@@ -215,17 +289,25 @@ export default function TransportDashboard() {
       })
 
       if (changedTransport) {
+        // Ensure the transport has the correct userorgId
+        const transportToUpdate = {
+          ...changedTransport,
+          userorgId: userData.userorgId,
+          lastModifiedDate: new Date().toISOString(),
+          lastModifiedBy: userData.email || "Unknown User",
+        }
+
         // Update in Supabase
-        await updateTransport(changedTransport)
+        await updateTransport(transportToUpdate)
 
         // Update local state
-        setTransports(updatedTransports)
+        setTransports(updatedTransports.map((t) => (t.id === transportToUpdate.id ? transportToUpdate : t)))
         updateHistoryState(updatedTransports)
 
         // Show toast notification about the move
         toast({
           title: "Transport moved",
-          description: `${changedTransport.customerName || changedTransport.name} moved to ${changedTransport.idealDeliveryDay}`,
+          description: `${transportToUpdate.customerName || transportToUpdate.name} moved to ${transportToUpdate.idealDeliveryDay}`,
           duration: 2000,
         })
       }
@@ -239,10 +321,28 @@ export default function TransportDashboard() {
     }
   }
 
+  // Handle transport update from detail dialog
+  const handleTransportUpdate = (updatedTransport: Transport) => {
+    const updatedTransports = transports.map((t) => (t.id === updatedTransport.id ? updatedTransport : t))
+    setTransports(updatedTransports)
+    updateHistoryState(updatedTransports)
+  }
+
   // Get transports for the selected week
   const filteredTransports = getTransportsForSelectedWeek()
 
-  if (loading) {
+  // Show loading state while waiting for user data
+  if (isUserLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
+        <span className="ml-2 text-lg">Loading user data...</span>
+      </div>
+    )
+  }
+
+  // Show loading state while fetching data
+  if (loading && userData) {
     return (
       <div className="flex items-center justify-center h-screen">
         <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
@@ -252,83 +352,149 @@ export default function TransportDashboard() {
   }
 
   return (
-    <div className="container mx-auto py-8">
-      <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4 mb-8">
-        <h1 className="text-3xl font-bold text-gray-800">Transport Management</h1>
-        <div className="flex flex-wrap items-center gap-2">
-          <HistoryControls
-            canUndo={canUndo}
-            canRedo={canRedo}
-            onUndo={() => {
-              const success = undo()
-              if (success) {
-                setTransports(historyState)
-                toast({
-                  title: "Action undone",
-                  description: "Previous transport arrangement restored",
-                  duration: 2000,
-                })
-              }
-            }}
-            onRedo={() => {
-              const success = redo()
-              if (success) {
-                setTransports(historyState)
-                toast({
-                  title: "Action redone",
-                  description: "Transport arrangement restored",
-                  duration: 2000,
-                })
-              }
-            }}
-            historyLength={historyLength}
-            currentPosition={currentPosition}
-          />
-          <SettingsDialog onConfigUpdate={handleConfigUpdate} />
-          <Button onClick={handleAddTransportClick} className="gap-1">
-            <Plus className="h-4 w-4" />
-            Add Transport
-          </Button>
-        </div>
-      </div>
+    <>
+      {/* User Data Dialog */}
+      <UserDataDialog open={showUserDataDialog} onSave={handleSaveUserData} />
 
-      {error && (
-        <Alert variant="destructive" className="mb-4">
-          <AlertTitle>Error</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-
-      <div className="space-y-4">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
-          <WeekSelector currentWeek={selectedWeek} onWeekChange={setSelectedWeek} />
-          <div className="text-sm text-muted-foreground">
-            Showing {filteredTransports.length} transports for the selected week
+      <div className="container mx-auto py-8">
+        <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4 mb-8">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-800">Transport Management</h1>
+            {userData && (
+              <p className="text-sm text-muted-foreground">
+                Organization: {userData.userorgId} | User: {userData.email}
+                {isManualEntry && <span className="ml-1 text-amber-600">(Manually entered)</span>}
+              </p>
+            )}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <HistoryControls
+              canUndo={canUndo}
+              canRedo={canRedo}
+              onUndo={() => {
+                const success = undo()
+                if (success) {
+                  setTransports(historyState)
+                  toast({
+                    title: "Action undone",
+                    description: "Previous transport arrangement restored",
+                    duration: 2000,
+                  })
+                }
+              }}
+              onRedo={() => {
+                const success = redo()
+                if (success) {
+                  setTransports(historyState)
+                  toast({
+                    title: "Action redone",
+                    description: "Transport arrangement restored",
+                    duration: 2000,
+                  })
+                }
+              }}
+              historyLength={historyLength}
+              currentPosition={currentPosition}
+            />
+            {userData && userData.roles.includes("admin") && (
+              <SettingsDialog onConfigUpdate={handleConfigUpdate} userData={userData} />
+            )}
+            <Button onClick={() => handleAddTransportClick()} className="gap-1">
+              <Plus className="h-4 w-4" />
+              Add Transport
+            </Button>
           </div>
         </div>
 
-        <TransportKanbanBoard
-          transports={filteredTransports}
+        {error && (
+          <Alert variant="destructive" className="mb-4">
+            <AlertTitle>Error</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
+        <div className="space-y-4">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
+            <WeekSelector currentWeek={selectedWeek} onWeekChange={setSelectedWeek} />
+            <div className="flex items-center gap-4">
+              <div className="text-sm text-muted-foreground">
+                Showing {filteredTransports.length} transports for the selected week
+              </div>
+
+              {/* View Toggle */}
+              <ToggleGroup
+                type="single"
+                value={viewMode}
+                onValueChange={(value) => value && setViewMode(value as "kanban" | "table")}
+              >
+                <ToggleGroupItem value="kanban" aria-label="Kanban View">
+                  <LayoutGrid className="h-4 w-4" />
+                </ToggleGroupItem>
+                <ToggleGroupItem value="table" aria-label="Table View">
+                  <List className="h-4 w-4" />
+                </ToggleGroupItem>
+              </ToggleGroup>
+            </div>
+          </div>
+
+          {userData ? (
+            viewMode === "kanban" ? (
+              <TransportKanbanBoard
+                transports={filteredTransports}
+                capacityPerDay={config.capacitySettings}
+                onTransportsChange={handleTransportsChange}
+                onEmptySlotClick={handleEmptySlotClick}
+                selectedWeek={selectedWeek}
+                availableDays={config.availableDays}
+              />
+            ) : (
+              <TransportTableView
+                transports={filteredTransports}
+                capacityPerDay={config.capacitySettings}
+                availableDays={config.availableDays}
+                selectedWeek={selectedWeek}
+                onAddTransportClick={(day) => handleAddTransportClick(day)}
+                onTransportClick={handleTransportClick}
+              />
+            )
+          ) : (
+            <div className="flex flex-col items-center justify-center p-8 border rounded-lg bg-gray-50">
+              <AlertTriangle className="h-12 w-12 text-amber-500 mb-4" />
+              <h2 className="text-xl font-semibold mb-2">User Information Required</h2>
+              <p className="text-center mb-4 max-w-md">
+                Please enter your user information to access the transport management system.
+              </p>
+              <Button onClick={() => setShowUserDataDialog(true)}>Enter User Information</Button>
+            </div>
+          )}
+        </div>
+
+        {/* Transport Registration Dialog */}
+        {userData && (
+          <TransportRegistrationDialog
+            open={registrationDialogOpen}
+            onOpenChange={setRegistrationDialogOpen}
+            onAddTransport={handleAddTransport}
+            transports={transports}
+            capacityPerDay={config.capacitySettings}
+            initialDay={selectedDay}
+            isAddonSlot={isAddonSlot}
+            availableDays={config.availableDays}
+            timeWindows={config.timeWindows}
+            userData={userData}
+          />
+        )}
+
+        {/* Transport Detail Dialog */}
+        <TransportDetailDialog
+          transport={selectedTransport}
+          open={detailDialogOpen}
+          onOpenChange={setDetailDialogOpen}
+          onUpdate={handleTransportUpdate}
           capacityPerDay={config.capacitySettings}
-          onTransportsChange={handleTransportsChange}
-          onEmptySlotClick={handleEmptySlotClick}
-          selectedWeek={selectedWeek}
-          availableDays={config.availableDays}
+          transports={transports}
         />
       </div>
-
-      {/* Transport Registration Dialog */}
-      <TransportRegistrationDialog
-        open={registrationDialogOpen}
-        onOpenChange={setRegistrationDialogOpen}
-        onAddTransport={handleAddTransport}
-        transports={transports}
-        capacityPerDay={config.capacitySettings}
-        initialDay={selectedDay}
-        isAddonSlot={isAddonSlot}
-        availableDays={config.availableDays}
-        timeWindows={config.timeWindows}
-      />
-    </div>
+    </>
   )
 }
