@@ -137,7 +137,7 @@ export const updateCapacitySettings = async (
       throw error
     }
 
-    const updateData = {
+    const updateData: Record<string, any> = {
       value: capacitySettings,
       lastmodifieddate: new Date().toISOString(),
       lastmodifiedby: user,
@@ -158,14 +158,19 @@ export const updateCapacitySettings = async (
       if (updateError) throw updateError
     } else {
       // Insert new configuration
-      const { error: insertError } = await supabase.from("configurations").insert({
+      const insertData: Record<string, any> = {
         key: "capacity_settings",
         value: capacitySettings,
         description: "Maximum number of transports allowed per delivery day",
         lastmodifieddate: new Date().toISOString(),
         lastmodifiedby: user,
-        ...(userorgIdColumnExists ? { userorgid: userorgId } : {}),
-      })
+      }
+
+      if (userorgIdColumnExists) {
+        insertData.userorgid = userorgId
+      }
+
+      const { error: insertError } = await supabase.from("configurations").insert(insertData)
 
       if (insertError) throw insertError
     }
@@ -197,7 +202,7 @@ export const updateAvailableDays = async (
       throw error
     }
 
-    const updateData = {
+    const updateData: Record<string, any> = {
       value: availableDays,
       lastmodifieddate: new Date().toISOString(),
       lastmodifiedby: user,
@@ -218,14 +223,19 @@ export const updateAvailableDays = async (
       if (updateError) throw updateError
     } else {
       // Insert new configuration
-      const { error: insertError } = await supabase.from("configurations").insert({
+      const insertData: Record<string, any> = {
         key: "available_days",
         value: availableDays,
         description: "Days available for delivery",
         lastmodifieddate: new Date().toISOString(),
         lastmodifiedby: user,
-        ...(userorgIdColumnExists ? { userorgid: userorgId } : {}),
-      })
+      }
+
+      if (userorgIdColumnExists) {
+        insertData.userorgid = userorgId
+      }
+
+      const { error: insertError } = await supabase.from("configurations").insert(insertData)
 
       if (insertError) throw insertError
     }
@@ -256,7 +266,7 @@ export const updateTimeWindows = async (timeWindows: string[], userorgId: string
       throw error
     }
 
-    const updateData = {
+    const updateData: Record<string, any> = {
       value: windowsToSave,
       lastmodifieddate: new Date().toISOString(),
       lastmodifiedby: user,
@@ -277,14 +287,19 @@ export const updateTimeWindows = async (timeWindows: string[], userorgId: string
       if (updateError) throw updateError
     } else {
       // Insert new configuration
-      const { error: insertError } = await supabase.from("configurations").insert({
+      const insertData: Record<string, any> = {
         key: "time_windows",
         value: windowsToSave,
         description: "Available time windows for delivery",
         lastmodifieddate: new Date().toISOString(),
         lastmodifiedby: user,
-        ...(userorgIdColumnExists ? { userorgid: userorgId } : {}),
-      })
+      }
+
+      if (userorgIdColumnExists) {
+        insertData.userorgid = userorgId
+      }
+
+      const { error: insertError } = await supabase.from("configurations").insert(insertData)
 
       if (insertError) throw insertError
     }

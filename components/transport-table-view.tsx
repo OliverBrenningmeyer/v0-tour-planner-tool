@@ -113,8 +113,6 @@ export function TransportTableView({
 
   // Render transport row
   const renderTransportRow = (transport: Transport, index: number, isAdditional = false) => {
-    const capacityLimit = capacityPerDay[transport.idealDeliveryDay] || 0
-
     return (
       <tr
         key={transport.id}

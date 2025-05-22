@@ -162,7 +162,7 @@ export function SettingsDialog({ onConfigUpdate, userData }: SettingsDialogProps
         <DialogHeader>
           <DialogTitle>System Settings</DialogTitle>
           <DialogDescription>
-            Configure capacity, available days, and time windows for transport scheduling.
+            Configure capacity and available days for transport scheduling.
             <Badge className="ml-2" variant="outline">
               Organization: {userData.userorgId}
             </Badge>
