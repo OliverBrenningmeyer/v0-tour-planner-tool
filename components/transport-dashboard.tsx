@@ -16,7 +16,6 @@ import { fetchConfigurations } from "@/lib/config-service"
 import { Loader2, Plus, AlertTriangle, LayoutGrid, List } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { TransportRegistrationDialog } from "./transport-registration-dialog"
 import { TransportDetailDialog } from "./transport-detail-dialog"
 import { useUser } from "@/lib/user-context"
@@ -422,18 +421,26 @@ export default function TransportDashboard() {
               </div>
 
               {/* View Toggle */}
-              <ToggleGroup
-                type="single"
-                value={viewMode}
-                onValueChange={(value) => value && setViewMode(value as "kanban" | "table")}
-              >
-                <ToggleGroupItem value="kanban" aria-label="Kanban View">
+              <div className="flex items-center gap-2 border rounded-md p-1">
+                <Button
+                  variant={viewMode === "kanban" ? "default" : "ghost"}
+                  size="sm"
+                  className="h-8 w-8 p-0"
+                  onClick={() => setViewMode("kanban")}
+                >
                   <LayoutGrid className="h-4 w-4" />
-                </ToggleGroupItem>
-                <ToggleGroupItem value="table" aria-label="Table View">
+                  <span className="sr-only">Kanban View</span>
+                </Button>
+                <Button
+                  variant={viewMode === "table" ? "default" : "ghost"}
+                  size="sm"
+                  className="h-8 w-8 p-0"
+                  onClick={() => setViewMode("table")}
+                >
                   <List className="h-4 w-4" />
-                </ToggleGroupItem>
-              </ToggleGroup>
+                  <span className="sr-only">Table View</span>
+                </Button>
+              </div>
             </div>
           </div>
 
