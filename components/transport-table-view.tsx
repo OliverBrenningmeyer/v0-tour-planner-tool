@@ -5,17 +5,18 @@ import { ChevronDown, ChevronRight, Plus, Truck, Calendar, Package } from "lucid
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { format, parseISO } from "date-fns"
+import { format, parseISO, addDays, startOfWeek } from "date-fns"
 import { cn } from "@/lib/utils"
 import type { Transport } from "@/lib/types"
 import { Crane } from "./icons/crane"
 
+// Update the TransportTableViewProps interface to include the selectedWeek
 interface TransportTableViewProps {
   transports: Transport[]
   capacityPerDay: Record<string, number>
   availableDays: string[]
   selectedWeek: Date
-  onAddTransportClick: (day: string) => void
+  onAddTransportClick: (day: string, isAddon?: boolean) => void
   onTransportClick: (transport: Transport) => void
 }
 
@@ -40,11 +41,39 @@ export function TransportTableView({
     }))
   }
 
-  // Group transports by day
-  const transportsByDay = availableDays.reduce<Record<string, Transport[]>>((acc, day) => {
-    acc[day] = transports.filter((t) => t.idealDeliveryDay === day)
-    return acc
-  }, {})
+  // Group transports by day and split into regular and additional slots
+  const transportsByDay = availableDays.reduce<Record<string, { regular: Transport[]; additional: Transport[] }>>(
+    (acc, day) => {
+      const dayTransports = transports.filter((t) => t.idealDeliveryDay === day)
+      const capacityLimit = capacityPerDay[day] || 0
+
+      acc[day] = {
+        regular: dayTransports.slice(0, capacityLimit),
+        additional: dayTransports.slice(capacityLimit),
+      }
+      return acc
+    },
+    {},
+  )
+
+  // Calculate the actual dates for each day of the selected week
+  const weekStart = startOfWeek(selectedWeek, { weekStartsOn: 1 }) // Start on Monday
+
+  // Get date for a day name
+  const getDayDate = (dayName: string) => {
+    const dayMap: Record<string, number> = {
+      monday: 0,
+      tuesday: 1,
+      wednesday: 2,
+      thursday: 3,
+      friday: 4,
+      saturday: 5,
+      sunday: 6,
+    }
+
+    const dayOffset = dayMap[dayName.toLowerCase()] ?? 0
+    return addDays(weekStart, dayOffset)
+  }
 
   // Get the vehicle type icon
   const getVehicleIcon = (vehicleType: string) => {
@@ -82,13 +111,77 @@ export function TransportTableView({
     }
   }
 
+  // Render transport row
+  const renderTransportRow = (transport: Transport, index: number, isAdditional = false) => {
+    const capacityLimit = capacityPerDay[transport.idealDeliveryDay] || 0
+
+    return (
+      <tr
+        key={transport.id}
+        className={cn("border-b hover:bg-gray-50 cursor-pointer", isAdditional && "bg-red-50 hover:bg-red-100")}
+        onClick={() => onTransportClick(transport)}
+      >
+        <td className="px-4 py-3 font-medium">{transport.customerName || transport.name}</td>
+        <td className="px-4 py-3">{transport.loadDescription || transport.description}</td>
+        <td className="px-4 py-3">
+          <div className="flex items-center gap-1">
+            {getSizeIcon(transport.size)}
+            <span>{transport.size}</span>
+          </div>
+        </td>
+        <td className="px-4 py-3">
+          <div className="flex items-center gap-1">
+            {getVehicleIcon(transport.vehicleType)}
+            <span>{transport.vehicleType}</span>
+          </div>
+        </td>
+        <td className="px-4 py-3">
+          <Badge variant="secondary" className="font-normal">
+            {transport.latestDeliveryTimeWindow}
+          </Badge>
+        </td>
+        <td className="px-4 py-3">
+          <div className="flex items-center gap-1">
+            <Calendar className="h-4 w-4 text-gray-400" />
+            {formatDate(transport.deliveryDate)}
+          </div>
+        </td>
+        <td className="px-4 py-3 text-gray-500">{transport.referenceNumber || "—"}</td>
+      </tr>
+    )
+  }
+
+  // Render empty slot row
+  const renderEmptySlotRow = (day: string, index: number, isAdditional = false) => (
+    <tr
+      key={`empty-${day}-${index}`}
+      className={cn(
+        "border-b hover:bg-gray-50 cursor-pointer border-dashed",
+        isAdditional && "bg-amber-50 hover:bg-amber-100",
+      )}
+      onClick={() => onAddTransportClick(day, isAdditional)}
+    >
+      <td colSpan={7} className="px-4 py-3 text-center">
+        <div className="flex items-center justify-center gap-2 text-gray-500">
+          <Plus className="h-4 w-4" />
+          <span>Empty slot - Click to add a transport{isAdditional ? " (additional slot)" : ""}</span>
+        </div>
+      </td>
+    </tr>
+  )
+
   return (
     <div className="space-y-4">
       {availableDays.map((day) => {
-        const dayTransports = transportsByDay[day] || []
+        const { regular, additional } = transportsByDay[day] || { regular: [], additional: [] }
         const isExpanded = expandedDays[day]
-        const isAtCapacity = dayTransports.length >= (capacityPerDay[day] || 0)
         const capacityLimit = capacityPerDay[day] || 0
+        const isAtCapacity = regular.length + additional.length >= capacityLimit
+        const emptySlotCount = Math.max(0, capacityLimit - regular.length)
+        const dayDate = getDayDate(day)
+
+        // Always show one empty slot in addon section if regular is at capacity
+        const showAddonEmptySlot = additional.length > 0 || regular.length >= capacityLimit
 
         return (
           <Card key={day} className="overflow-hidden">
@@ -109,11 +202,14 @@ export function TransportTableView({
                   ) : (
                     <ChevronRight className="h-5 w-5 text-gray-500" />
                   )}
-                  <CardTitle className="text-lg capitalize">{day}</CardTitle>
+                  <div>
+                    <CardTitle className="text-lg capitalize">{day}</CardTitle>
+                    {dayDate && <p className="text-sm text-gray-600">{format(dayDate, "EEE, MMM d, yyyy")}</p>}
+                  </div>
                 </div>
                 <div className="flex items-center gap-3">
                   <Badge variant={isAtCapacity ? "destructive" : "outline"}>
-                    {dayTransports.length}/{capacityLimit}
+                    {regular.length + additional.length}/{capacityLimit}
                   </Badge>
                   <Button
                     size="sm"
@@ -133,7 +229,7 @@ export function TransportTableView({
 
             {isExpanded && (
               <CardContent className="p-0">
-                {dayTransports.length === 0 ? (
+                {regular.length === 0 && additional.length === 0 ? (
                   <div className="py-6 text-center text-gray-500">No transports scheduled for {day}</div>
                 ) : (
                   <div className="overflow-x-auto">
@@ -150,43 +246,32 @@ export function TransportTableView({
                         </tr>
                       </thead>
                       <tbody>
-                        {dayTransports.map((transport, index) => (
-                          <tr
-                            key={transport.id}
-                            className={cn(
-                              "border-b hover:bg-gray-50 cursor-pointer",
-                              index >= capacityLimit && "bg-red-50 hover:bg-red-100",
-                            )}
-                            onClick={() => onTransportClick(transport)}
-                          >
-                            <td className="px-4 py-3 font-medium">{transport.customerName || transport.name}</td>
-                            <td className="px-4 py-3">{transport.loadDescription || transport.description}</td>
-                            <td className="px-4 py-3">
-                              <div className="flex items-center gap-1">
-                                {getSizeIcon(transport.size)}
-                                <span>{transport.size}</span>
-                              </div>
-                            </td>
-                            <td className="px-4 py-3">
-                              <div className="flex items-center gap-1">
-                                {getVehicleIcon(transport.vehicleType)}
-                                <span>{transport.vehicleType}</span>
-                              </div>
-                            </td>
-                            <td className="px-4 py-3">
-                              <Badge variant="secondary" className="font-normal">
-                                {transport.latestDeliveryTimeWindow}
-                              </Badge>
-                            </td>
-                            <td className="px-4 py-3">
-                              <div className="flex items-center gap-1">
-                                <Calendar className="h-4 w-4 text-gray-400" />
-                                {formatDate(transport.deliveryDate)}
-                              </div>
-                            </td>
-                            <td className="px-4 py-3 text-gray-500">{transport.referenceNumber || "—"}</td>
-                          </tr>
-                        ))}
+                        {/* Regular slots section */}
+                        <tr>
+                          <td colSpan={7} className="bg-gray-100 px-4 py-1 text-xs font-medium">
+                            Regular Slots
+                          </td>
+                        </tr>
+                        {regular.map((transport, index) => renderTransportRow(transport, index))}
+
+                        {/* Empty regular slots */}
+                        {emptySlotCount > 0 &&
+                          Array.from({ length: emptySlotCount }).map((_, index) => renderEmptySlotRow(day, index))}
+
+                        {/* Additional slots section - only show if there are additional transports or if regular slots are at capacity */}
+                        {(additional.length > 0 || regular.length >= capacityLimit) && (
+                          <>
+                            <tr>
+                              <td colSpan={7} className="bg-amber-100 px-4 py-1 text-xs font-medium">
+                                Additional Slots
+                              </td>
+                            </tr>
+                            {additional.map((transport, index) => renderTransportRow(transport, index, true))}
+
+                            {/* Empty additional slot */}
+                            {showAddonEmptySlot && renderEmptySlotRow(day, 0, true)}
+                          </>
+                        )}
                       </tbody>
                     </table>
                   </div>

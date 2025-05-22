@@ -237,6 +237,9 @@ export const updateAvailableDays = async (
 
 // Update time windows
 export const updateTimeWindows = async (timeWindows: string[], userorgId: string, user = "System"): Promise<void> => {
+  // Use a default if not provided
+  const windowsToSave = timeWindows.length > 0 ? timeWindows : ["Morning", "Afternoon"]
+
   const supabase = getSupabaseClient()
 
   try {
@@ -254,7 +257,7 @@ export const updateTimeWindows = async (timeWindows: string[], userorgId: string
     }
 
     const updateData = {
-      value: timeWindows,
+      value: windowsToSave,
       lastmodifieddate: new Date().toISOString(),
       lastmodifiedby: user,
     }
@@ -276,7 +279,7 @@ export const updateTimeWindows = async (timeWindows: string[], userorgId: string
       // Insert new configuration
       const { error: insertError } = await supabase.from("configurations").insert({
         key: "time_windows",
-        value: timeWindows,
+        value: windowsToSave,
         description: "Available time windows for delivery",
         lastmodifieddate: new Date().toISOString(),
         lastmodifiedby: user,

@@ -178,9 +178,9 @@ export default function TransportDashboard() {
   }
 
   // Handle "Add Transport" button click
-  const handleAddTransportClick = (day?: string) => {
+  const handleAddTransportClick = (day?: string, isAddon = false) => {
     setSelectedDay(day || null)
-    setIsAddonSlot(false)
+    setIsAddonSlot(isAddon)
     setRegistrationDialogOpen(true)
   }
 
@@ -460,7 +460,7 @@ export default function TransportDashboard() {
                 capacityPerDay={config.capacitySettings}
                 availableDays={config.availableDays}
                 selectedWeek={selectedWeek}
-                onAddTransportClick={(day) => handleAddTransportClick(day)}
+                onAddTransportClick={(day, isAddon) => handleAddTransportClick(day, isAddon)}
                 onTransportClick={handleTransportClick}
               />
             )
