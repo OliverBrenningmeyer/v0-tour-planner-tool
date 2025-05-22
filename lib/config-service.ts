@@ -95,11 +95,14 @@ export const fetchConfigurations = async (userorgId: string): Promise<AppConfig>
         .maybeSingle()
 
       // Combine all configurations
+      const capacitySettings = capacityData?.value || defaultCapacityData?.value || DEFAULT_CONFIG.capacitySettings
+      const availableDays = daysData?.value || defaultDaysData?.value || DEFAULT_CONFIG.availableDays
+      const timeWindows = timeWindowsData?.value || defaultTimeWindowsData?.value || DEFAULT_CONFIG.timeWindows
+
       return {
-        capacitySettings:
-          ((capacityData || defaultCapacityData)?.value as CapacitySettings) || DEFAULT_CONFIG.capacitySettings,
-        availableDays: ((daysData || defaultDaysData)?.value as string[]) || DEFAULT_CONFIG.availableDays,
-        timeWindows: ((timeWindowsData || defaultTimeWindowsData)?.value as string[]) || DEFAULT_CONFIG.timeWindows,
+        capacitySettings: capacitySettings as CapacitySettings,
+        availableDays: availableDays as string[],
+        timeWindows: timeWindows as string[],
       }
     }
 
@@ -137,25 +140,19 @@ export const updateCapacitySettings = async (
       throw error
     }
 
-    // Create update data object
-    const updateData: Record<string, any> = {
-      value: capacitySettings,
-      lastmodifieddate: new Date().toISOString(),
-      lastmodifiedby: user,
-    }
-
-    // Add userorgid if the column exists
-    if (userorgIdColumnExists) {
-      updateData.userorgid = userorgId
-    }
-
     if (data) {
       // Update existing configuration
-      const { error: updateError } = await supabase
-        .from("configurations")
-        .update(updateData)
-        .eq("key", "capacity_settings")
-        .eq(userorgIdColumnExists ? "userorgid" : "id", userorgIdColumnExists ? userorgId : data.id)
+      const updateData: Record<string, any> = {
+        value: capacitySettings,
+        lastmodifieddate: new Date().toISOString(),
+        lastmodifiedby: user,
+      }
+
+      if (userorgIdColumnExists) {
+        updateData.userorgid = userorgId
+      }
+
+      const { error: updateError } = await supabase.from("configurations").update(updateData).eq("id", data.id)
 
       if (updateError) throw updateError
     } else {
@@ -168,7 +165,6 @@ export const updateCapacitySettings = async (
         lastmodifiedby: user,
       }
 
-      // Add userorgid if the column exists
       if (userorgIdColumnExists) {
         insertData.userorgid = userorgId
       }
@@ -205,25 +201,19 @@ export const updateAvailableDays = async (
       throw error
     }
 
-    // Create update data object
-    const updateData: Record<string, any> = {
-      value: availableDays,
-      lastmodifieddate: new Date().toISOString(),
-      lastmodifiedby: user,
-    }
-
-    // Add userorgid if the column exists
-    if (userorgIdColumnExists) {
-      updateData.userorgid = userorgId
-    }
-
     if (data) {
       // Update existing configuration
-      const { error: updateError } = await supabase
-        .from("configurations")
-        .update(updateData)
-        .eq("key", "available_days")
-        .eq(userorgIdColumnExists ? "userorgid" : "id", userorgIdColumnExists ? userorgId : data.id)
+      const updateData: Record<string, any> = {
+        value: availableDays,
+        lastmodifieddate: new Date().toISOString(),
+        lastmodifiedby: user,
+      }
+
+      if (userorgIdColumnExists) {
+        updateData.userorgid = userorgId
+      }
+
+      const { error: updateError } = await supabase.from("configurations").update(updateData).eq("id", data.id)
 
       if (updateError) throw updateError
     } else {
@@ -236,7 +226,6 @@ export const updateAvailableDays = async (
         lastmodifiedby: user,
       }
 
-      // Add userorgid if the column exists
       if (userorgIdColumnExists) {
         insertData.userorgid = userorgId
       }
@@ -272,25 +261,19 @@ export const updateTimeWindows = async (timeWindows: string[], userorgId: string
       throw error
     }
 
-    // Create update data object
-    const updateData: Record<string, any> = {
-      value: windowsToSave,
-      lastmodifieddate: new Date().toISOString(),
-      lastmodifiedby: user,
-    }
-
-    // Add userorgid if the column exists
-    if (userorgIdColumnExists) {
-      updateData.userorgid = userorgId
-    }
-
     if (data) {
       // Update existing configuration
-      const { error: updateError } = await supabase
-        .from("configurations")
-        .update(updateData)
-        .eq("key", "time_windows")
-        .eq(userorgIdColumnExists ? "userorgid" : "id", userorgIdColumnExists ? userorgId : data.id)
+      const updateData: Record<string, any> = {
+        value: windowsToSave,
+        lastmodifieddate: new Date().toISOString(),
+        lastmodifiedby: user,
+      }
+
+      if (userorgIdColumnExists) {
+        updateData.userorgid = userorgId
+      }
+
+      const { error: updateError } = await supabase.from("configurations").update(updateData).eq("id", data.id)
 
       if (updateError) throw updateError
     } else {
@@ -303,7 +286,6 @@ export const updateTimeWindows = async (timeWindows: string[], userorgId: string
         lastmodifiedby: user,
       }
 
-      // Add userorgid if the column exists
       if (userorgIdColumnExists) {
         insertData.userorgid = userorgId
       }
