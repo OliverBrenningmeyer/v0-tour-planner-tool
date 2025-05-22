@@ -144,10 +144,11 @@ export const addTransport = async (transport: Omit<Transport, "id">): Promise<Tr
     }
 
     // If the column doesn't exist or the first try failed, try without userorgId
-    const transportData = { ...transport } as any
-    delete transportData.userorgId // Remove the userorgId field
+    const transportData = { ...transport }
+    const transportCopy = { ...transportData } as any
+    delete transportCopy.userorgId // Remove the userorgId field
 
-    const transportToInsert = mapTransportToDbFormat(transportData as Transport)
+    const transportToInsert = mapTransportToDbFormat(transportCopy as Transport)
     const { data, error } = await supabase.from("transports").insert(transportToInsert).select().single()
 
     if (error) {
@@ -207,10 +208,12 @@ export const updateTransport = async (transport: Transport): Promise<Transport> 
     }
 
     // If the column doesn't exist or the first try failed, try without userorgId
-    const transportData = { ...transport } as any
-    delete transportData.userorgId // Remove the userorgId field
+    const transportData = { ...transport }
+    const transportCopy = { ...transportData }
+    // Create a new object without userorgId
+    const { userorgId, ...transportWithoutUserorgId } = transportCopy
 
-    const transportToUpdate = mapTransportToDbFormat(transportData as Transport)
+    const transportToUpdate = mapTransportToDbFormat(transportWithoutUserorgId as Transport)
     const { data, error } = await supabase
       .from("transports")
       .update(transportToUpdate)

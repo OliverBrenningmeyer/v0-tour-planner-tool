@@ -110,68 +110,13 @@ export function TransportTableView({
     }
   }
 
-  // Render transport row
-  const renderTransportRow = (transport: Transport, index: number, isAdditional = false) => {
-    return (
-      <tr
-        key={transport.id}
-        className={cn("border-b hover:bg-gray-50 cursor-pointer", isAdditional && "bg-red-50 hover:bg-red-100")}
-        onClick={() => onTransportClick(transport)}
-      >
-        <td className="px-4 py-3 font-medium">{transport.customerName || transport.name}</td>
-        <td className="px-4 py-3">{transport.loadDescription || transport.description}</td>
-        <td className="px-4 py-3">
-          <div className="flex items-center gap-1">
-            {getSizeIcon(transport.size)}
-            <span>{transport.size}</span>
-          </div>
-        </td>
-        <td className="px-4 py-3">
-          <div className="flex items-center gap-1">
-            {getVehicleIcon(transport.vehicleType)}
-            <span>{transport.vehicleType}</span>
-          </div>
-        </td>
-        <td className="px-4 py-3">
-          <Badge variant="secondary" className="font-normal">
-            {transport.latestDeliveryTimeWindow}
-          </Badge>
-        </td>
-        <td className="px-4 py-3">
-          <div className="flex items-center gap-1">
-            <Calendar className="h-4 w-4 text-gray-400" />
-            {formatDate(transport.deliveryDate)}
-          </div>
-        </td>
-        <td className="px-4 py-3 text-gray-500">{transport.referenceNumber || "—"}</td>
-      </tr>
-    )
-  }
-
-  // Render empty slot row
-  const renderEmptySlotRow = (day: string, index: number, isAdditional = false) => (
-    <tr
-      key={`empty-${day}-${index}`}
-      className={cn(
-        "border-b hover:bg-gray-50 cursor-pointer border-dashed",
-        isAdditional && "bg-amber-50 hover:bg-amber-100",
-      )}
-      onClick={() => onAddTransportClick(day, isAdditional)}
-    >
-      <td colSpan={7} className="px-4 py-3 text-center">
-        <div className="flex items-center justify-center gap-2 text-gray-500">
-          <Plus className="h-4 w-4" />
-          <span>Empty slot - Click to add a transport{isAdditional ? " (additional slot)" : ""}</span>
-        </div>
-      </td>
-    </tr>
-  )
-
   return (
     <div className="space-y-4">
       {availableDays.map((day) => {
-        const { regular, additional } = transportsByDay[day] || { regular: [], additional: [] }
-        const isExpanded = expandedDays[day]
+        const dayData = transportsByDay[day] || { regular: [], additional: [] }
+        const regular = dayData.regular
+        const additional = dayData.additional
+        const isExpanded = expandedDays[day] || false
         const capacityLimit = capacityPerDay[day] || 0
         const isAtCapacity = regular.length + additional.length >= capacityLimit
         const emptySlotCount = Math.max(0, capacityLimit - regular.length)
@@ -249,11 +194,57 @@ export function TransportTableView({
                             Regular Slots
                           </td>
                         </tr>
-                        {regular.map((transport, index) => renderTransportRow(transport, index))}
+
+                        {regular.map((transport) => (
+                          <tr
+                            key={transport.id}
+                            className="border-b hover:bg-gray-50 cursor-pointer"
+                            onClick={() => onTransportClick(transport)}
+                          >
+                            <td className="px-4 py-3 font-medium">{transport.customerName || transport.name}</td>
+                            <td className="px-4 py-3">{transport.loadDescription || transport.description}</td>
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-1">
+                                {getSizeIcon(transport.size)}
+                                <span>{transport.size}</span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-1">
+                                {getVehicleIcon(transport.vehicleType)}
+                                <span>{transport.vehicleType}</span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3">
+                              <Badge variant="secondary" className="font-normal">
+                                {transport.latestDeliveryTimeWindow}
+                              </Badge>
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-1">
+                                <Calendar className="h-4 w-4 text-gray-400" />
+                                {formatDate(transport.deliveryDate)}
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 text-gray-500">{transport.referenceNumber || "—"}</td>
+                          </tr>
+                        ))}
 
                         {/* Empty regular slots */}
-                        {emptySlotCount > 0 &&
-                          Array.from({ length: emptySlotCount }).map((_, index) => renderEmptySlotRow(day, index))}
+                        {Array.from({ length: emptySlotCount }).map((_, index) => (
+                          <tr
+                            key={`empty-${day}-${index}`}
+                            className="border-b hover:bg-gray-50 cursor-pointer border-dashed"
+                            onClick={() => onAddTransportClick(day, false)}
+                          >
+                            <td colSpan={7} className="px-4 py-3 text-center">
+                              <div className="flex items-center justify-center gap-2 text-gray-500">
+                                <Plus className="h-4 w-4" />
+                                <span>Empty slot - Click to add a transport</span>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
 
                         {/* Additional slots section - only show if there are additional transports or if regular slots are at capacity */}
                         {(additional.length > 0 || regular.length >= capacityLimit) && (
@@ -263,10 +254,56 @@ export function TransportTableView({
                                 Additional Slots
                               </td>
                             </tr>
-                            {additional.map((transport, index) => renderTransportRow(transport, index, true))}
+
+                            {additional.map((transport) => (
+                              <tr
+                                key={transport.id}
+                                className="border-b hover:bg-red-100 bg-red-50 cursor-pointer"
+                                onClick={() => onTransportClick(transport)}
+                              >
+                                <td className="px-4 py-3 font-medium">{transport.customerName || transport.name}</td>
+                                <td className="px-4 py-3">{transport.loadDescription || transport.description}</td>
+                                <td className="px-4 py-3">
+                                  <div className="flex items-center gap-1">
+                                    {getSizeIcon(transport.size)}
+                                    <span>{transport.size}</span>
+                                  </div>
+                                </td>
+                                <td className="px-4 py-3">
+                                  <div className="flex items-center gap-1">
+                                    {getVehicleIcon(transport.vehicleType)}
+                                    <span>{transport.vehicleType}</span>
+                                  </div>
+                                </td>
+                                <td className="px-4 py-3">
+                                  <Badge variant="secondary" className="font-normal">
+                                    {transport.latestDeliveryTimeWindow}
+                                  </Badge>
+                                </td>
+                                <td className="px-4 py-3">
+                                  <div className="flex items-center gap-1">
+                                    <Calendar className="h-4 w-4 text-gray-400" />
+                                    {formatDate(transport.deliveryDate)}
+                                  </div>
+                                </td>
+                                <td className="px-4 py-3 text-gray-500">{transport.referenceNumber || "—"}</td>
+                              </tr>
+                            ))}
 
                             {/* Empty additional slot */}
-                            {showAddonEmptySlot && renderEmptySlotRow(day, 0, true)}
+                            {showAddonEmptySlot && (
+                              <tr
+                                className="border-b hover:bg-amber-100 bg-amber-50 cursor-pointer border-dashed"
+                                onClick={() => onAddTransportClick(day, true)}
+                              >
+                                <td colSpan={7} className="px-4 py-3 text-center">
+                                  <div className="flex items-center justify-center gap-2 text-gray-500">
+                                    <Plus className="h-4 w-4" />
+                                    <span>Empty slot - Click to add a transport (additional slot)</span>
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
                           </>
                         )}
                       </tbody>

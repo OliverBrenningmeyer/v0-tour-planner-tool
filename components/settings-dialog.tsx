@@ -19,7 +19,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { useToast } from "@/hooks/use-toast"
-import type { AppConfig, CapacitySettings } from "@/lib/types"
+import type { AppConfig } from "@/lib/types"
 import type { UserData } from "@/lib/user-context"
 import { fetchConfigurations, updateAllConfigurations } from "@/lib/config-service"
 
@@ -36,7 +36,7 @@ export function SettingsDialog({ onConfigUpdate, userData }: SettingsDialogProps
   const [activeTab, setActiveTab] = useState("capacity")
 
   // Configuration state
-  const [capacitySettings, setCapacitySettings] = useState<CapacitySettings>({})
+  const [capacitySettings, setCapacitySettings] = useState<Record<string, number>>({})
   const [availableDays, setAvailableDays] = useState<string[]>([])
 
   // New item inputs
@@ -113,10 +113,10 @@ export function SettingsDialog({ onConfigUpdate, userData }: SettingsDialogProps
 
   const handleCapacityChange = (day: string, value: string) => {
     const numValue = Number.parseInt(value, 10) || 0
-    setCapacitySettings({
-      ...capacitySettings,
+    setCapacitySettings((prev) => ({
+      ...prev,
       [day]: numValue,
-    })
+    }))
   }
 
   const handleAddDay = () => {
@@ -134,10 +134,10 @@ export function SettingsDialog({ onConfigUpdate, userData }: SettingsDialogProps
     }
 
     setAvailableDays([...availableDays, formattedDay])
-    setCapacitySettings({
-      ...capacitySettings,
+    setCapacitySettings((prev) => ({
+      ...prev,
       [formattedDay]: 3, // Default capacity
-    })
+    }))
     setNewDay("")
   }
 
@@ -251,7 +251,12 @@ export function SettingsDialog({ onConfigUpdate, userData }: SettingsDialogProps
                       placeholder="Add new day (e.g., monday, tuesday)"
                       value={newDay}
                       onChange={(e) => setNewDay(e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && handleAddDay()}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault()
+                          handleAddDay()
+                        }
+                      }}
                     />
                     <Button type="button" onClick={handleAddDay} size="sm">
                       <Plus className="h-4 w-4 mr-1" />

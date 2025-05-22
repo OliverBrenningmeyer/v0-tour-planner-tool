@@ -1,5 +1,5 @@
 import { getSupabaseClient } from "./supabase"
-import type { AppConfig, CapacitySettings } from "./types"
+import type { AppConfig } from "./types"
 
 // Default configuration values
 const DEFAULT_CONFIG: AppConfig = {
@@ -28,7 +28,7 @@ export const fetchConfigurations = async (userorgId: string): Promise<AppConfig>
         .eq("table_name", "configurations")
         .eq("column_name", "userorgid")
 
-      userorgIdColumnExists = columnInfo && columnInfo.length > 0
+      userorgIdColumnExists = !!(columnInfo && columnInfo.length > 0)
 
       if (columnError) {
         console.warn("Error checking for userorgid column in configurations:", columnError)
@@ -95,20 +95,25 @@ export const fetchConfigurations = async (userorgId: string): Promise<AppConfig>
         .maybeSingle()
 
       // Combine all configurations
-      const capacitySettings = capacityData?.value || defaultCapacityData?.value || DEFAULT_CONFIG.capacitySettings
-      const availableDays = daysData?.value || defaultDaysData?.value || DEFAULT_CONFIG.availableDays
-      const timeWindows = timeWindowsData?.value || defaultTimeWindowsData?.value || DEFAULT_CONFIG.timeWindows
-
-      return {
-        capacitySettings: capacitySettings as CapacitySettings,
-        availableDays: availableDays as string[],
-        timeWindows: timeWindows as string[],
+      const config: AppConfig = {
+        capacitySettings:
+          (capacityData?.value as Record<string, number>) ||
+          (defaultCapacityData?.value as Record<string, number>) ||
+          DEFAULT_CONFIG.capacitySettings,
+        availableDays:
+          (daysData?.value as string[]) || (defaultDaysData?.value as string[]) || DEFAULT_CONFIG.availableDays,
+        timeWindows:
+          (timeWindowsData?.value as string[]) ||
+          (defaultTimeWindowsData?.value as string[]) ||
+          DEFAULT_CONFIG.timeWindows,
       }
+
+      return config
     }
 
     // Combine all configurations
     return {
-      capacitySettings: (capacityData?.value as CapacitySettings) || DEFAULT_CONFIG.capacitySettings,
+      capacitySettings: (capacityData?.value as Record<string, number>) || DEFAULT_CONFIG.capacitySettings,
       availableDays: (daysData?.value as string[]) || DEFAULT_CONFIG.availableDays,
       timeWindows: (timeWindowsData?.value as string[]) || DEFAULT_CONFIG.timeWindows,
     }
@@ -120,7 +125,7 @@ export const fetchConfigurations = async (userorgId: string): Promise<AppConfig>
 
 // Update capacity settings
 export const updateCapacitySettings = async (
-  capacitySettings: CapacitySettings,
+  capacitySettings: Record<string, number>,
   userorgId: string,
   user = "System",
 ): Promise<void> => {
