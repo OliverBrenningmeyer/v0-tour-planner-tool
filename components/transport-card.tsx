@@ -1,8 +1,6 @@
 "use client"
 
-import type React from "react"
-
-import { Package, Truck, Box, GripVertical, Calendar, Weight, CuboidIcon as Cube } from "lucide-react"
+import { Package, Truck, Box, Calendar, Weight, CuboidIcon as Cube } from "lucide-react"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Crane } from "./icons/crane"
@@ -12,18 +10,10 @@ import { format, parseISO, isValid } from "date-fns"
 interface TransportCardProps {
   transport: Transport
   isOverCapacity?: boolean
-  isDragging?: boolean
   onClick?: () => void
-  onDragStart?: (transport: Transport) => void
 }
 
-export function TransportCard({
-  transport,
-  isOverCapacity = false,
-  isDragging = false,
-  onClick,
-  onDragStart,
-}: TransportCardProps) {
+export function TransportCard({ transport, isOverCapacity = false, onClick }: TransportCardProps) {
   // Determine icon based on size
   const getSizeIcon = () => {
     switch (transport.size) {
@@ -74,51 +64,11 @@ export function TransportCard({
     }
   }
 
-  // Handle drag start
-  const handleDragStart = (e: React.DragEvent<HTMLDivElement>) => {
-    // Set the drag data to the transport ID
-    e.dataTransfer.setData("text/plain", transport.id)
-
-    // Set the drag effect
-    e.dataTransfer.effectAllowed = "move"
-
-    // Call the onDragStart callback if provided
-    if (onDragStart) {
-      onDragStart(transport)
-    }
-
-    // Add a class to the body to indicate dragging
-    document.body.classList.add("dragging")
-
-    // Create a drag image (optional)
-    const dragImage = document.createElement("div")
-    dragImage.textContent = transport.customerName || transport.name
-    dragImage.className = "bg-white p-2 rounded shadow-lg text-sm"
-    dragImage.style.position = "absolute"
-    dragImage.style.top = "-1000px"
-    document.body.appendChild(dragImage)
-    e.dataTransfer.setDragImage(dragImage, 0, 0)
-
-    // Remove the drag image after a short delay
-    setTimeout(() => {
-      document.body.removeChild(dragImage)
-    }, 0)
-  }
-
-  // Handle drag end
-  const handleDragEnd = () => {
-    // Remove the dragging class from the body
-    document.body.classList.remove("dragging")
-  }
-
   return (
     <Card
-      draggable="true"
-      onDragStart={handleDragStart}
-      onDragEnd={handleDragEnd}
       className={`overflow-hidden border-l-4 transition-all duration-200 ${
         isOverCapacity ? "border-red-500 bg-red-50" : "border-l-blue-500"
-      } ${isDragging ? "opacity-50" : "hover:shadow-md"} ${onClick ? "cursor-pointer hover:bg-gray-50" : ""}`}
+      } ${onClick ? "cursor-pointer hover:bg-gray-50 hover:shadow-md" : ""}`}
       onClick={(e) => {
         if (onClick) {
           e.stopPropagation()
@@ -127,12 +77,9 @@ export function TransportCard({
       }}
     >
       <CardHeader className="p-4 pb-2 flex flex-row items-start justify-between">
-        <div className="flex items-center gap-2">
-          <GripVertical className="h-5 w-5 text-gray-400 cursor-grab hover:text-gray-600" />
-          <CardTitle className="text-base font-medium flex items-center gap-2">
-            {transport.customerName || transport.name}
-          </CardTitle>
-        </div>
+        <CardTitle className="text-base font-medium flex items-center gap-2">
+          {transport.customerName || transport.name}
+        </CardTitle>
         {getVehicleBadge()}
       </CardHeader>
       <CardContent className="p-4 pt-0 text-sm text-gray-600">

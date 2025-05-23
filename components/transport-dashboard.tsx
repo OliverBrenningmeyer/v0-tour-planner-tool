@@ -269,7 +269,6 @@ export default function TransportDashboard() {
 
   // Fetch transports and configurations from Supabase on component mount
   useEffect(() => {
-    // Find the initialize function and modify it to ensure real addresses
     const initialize = async () => {
       try {
         setLoading(true)
@@ -296,8 +295,6 @@ export default function TransportDashboard() {
         for (const transport of fetchedTransports) {
           await updateTransport(transport)
         }
-
-        // Rest of the initialize function remains the same...
 
         // Check if we have any transports for the current week
         const weekStart = startOfWeek(selectedWeek, { weekStartsOn: 1 })

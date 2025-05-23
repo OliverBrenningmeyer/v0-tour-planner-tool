@@ -45,14 +45,7 @@ export interface Transport {
   status: "pending" | "confirmed" | "completed" | "cancelled"
 }
 
-export interface DraggableTransportCardProps {
-  transport: Transport
-  isOverCapacity?: boolean
-  index: number
-  onClick?: () => void
-}
-
-export interface DroppableColumnProps {
+export interface TransportColumnProps {
   day: string
   date?: Date
   transports: Transport[]
@@ -63,7 +56,6 @@ export interface DroppableColumnProps {
   onTransportClick?: (transport: Transport) => void
   onEmptySlotClick?: (day: string, isAddonSlot?: boolean) => void
   routeInfo?: RouteInfo
-  onDrop?: (transportId: string, targetDate: string) => void
 }
 
 // Updated interface for capacity limits - removed count

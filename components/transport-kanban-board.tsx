@@ -1,13 +1,11 @@
 "use client"
 
 import { useState } from "react"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { DroppableColumn } from "./droppable-column"
+import { TransportColumn } from "./transport-column"
 import { TransportDetailDialog } from "./transport-detail-dialog"
 import type { Transport, CapacityLimits, CapacityUsage, AppConfig } from "@/lib/types"
-import { startOfWeek, addDays, format, parseISO, isAfter, isValid } from "date-fns"
+import { startOfWeek, addDays, format, parseISO, isValid } from "date-fns"
 import { calculateRoute } from "@/lib/route-service"
-import { useToast } from "@/hooks/use-toast"
 
 interface TransportKanbanBoardProps {
   transports: Transport[]
@@ -30,10 +28,8 @@ export function TransportKanbanBoard({
   availableDays = ["monday", "wednesday", "friday"],
   config,
 }: TransportKanbanBoardProps) {
-  const [dragError, setDragError] = useState<string | null>(null)
   const [selectedTransport, setSelectedTransport] = useState<Transport | null>(null)
   const [detailDialogOpen, setDetailDialogOpen] = useState(false)
-  const { toast } = useToast()
 
   // Safely parse ISO date string
   const safeParseISO = (dateString: string | undefined): Date | null => {
@@ -148,89 +144,12 @@ export function TransportKanbanBoard({
     onTransportsChange(updatedTransports)
   }
 
-  // Handle drop
-  const handleDrop = (transportId: string, targetDateString: string) => {
-    // Find the transport to move
-    const transportToMove = transports.find((t) => t.id === transportId)
-    if (!transportToMove) {
-      console.error("Transport not found:", transportId)
-      return
-    }
-
-    // Parse the target date
-    let targetDate: Date | null = null
-    try {
-      targetDate = parseISO(targetDateString)
-      if (!isValid(targetDate)) {
-        throw new Error("Invalid date")
-      }
-    } catch (error) {
-      console.error("Error parsing target date:", error)
-      return
-    }
-
-    // Check if we're moving to the same date
-    const currentDate = safeParseISO(transportToMove.idealDeliveryDate)
-    if (currentDate && format(currentDate, "yyyy-MM-dd") === format(targetDate, "yyyy-MM-dd")) {
-      return // No change needed
-    }
-
-    // Validate against latest delivery date
-    if (transportToMove.latestDeliveryDate) {
-      const latestDate = safeParseISO(transportToMove.latestDeliveryDate)
-      if (latestDate && isAfter(targetDate, latestDate)) {
-        const errorMessage = `Cannot move transport to ${format(targetDate, "EEE, MMM d")}. Latest delivery date is ${format(latestDate, "EEE, MMM d")}.`
-
-        setDragError(errorMessage)
-        toast({
-          title: "Invalid move",
-          description: errorMessage,
-          variant: "destructive",
-        })
-        return
-      }
-    }
-
-    // Update the transport with new dates
-    const updatedTransports = transports.map((t) => {
-      if (t.id === transportToMove.id) {
-        return {
-          ...t,
-          idealDeliveryDate: targetDate.toISOString(),
-          deliveryDate: targetDate.toISOString(),
-          deliveryDay: format(targetDate, "EEEE").toLowerCase(),
-          lastModifiedDate: new Date().toISOString(),
-          lastModifiedBy: "Current User",
-        }
-      }
-      return t
-    })
-
-    onTransportsChange(updatedTransports)
-
-    // Clear any previous errors
-    setDragError(null)
-
-    // Show success toast
-    toast({
-      title: "Transport moved",
-      description: `${transportToMove.customerName || transportToMove.name} moved to ${format(targetDate, "EEEE, MMM d")}`,
-    })
-  }
-
   // Get the week dates
   const weekDates = getWeekDates()
   const tourPlanning = config?.tourPlanning || { depotAddress: "Berlin Zentrale", stopTimeMinutes: 30 }
 
   return (
     <div className="space-y-4">
-      {dragError && (
-        <Alert variant="destructive">
-          <AlertTitle>Drag and Drop Error</AlertTitle>
-          <AlertDescription>{dragError}</AlertDescription>
-        </Alert>
-      )}
-
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {weekDates.map((date) => {
           const dayName = format(date, "EEEE").toLowerCase()
@@ -241,7 +160,7 @@ export function TransportKanbanBoard({
           const routeInfo = allDayTransports.length > 0 ? calculateRoute(allDayTransports, tourPlanning) : undefined
 
           return (
-            <DroppableColumn
+            <TransportColumn
               key={format(date, "yyyy-MM-dd")}
               day={dayName}
               date={date}
@@ -253,7 +172,6 @@ export function TransportKanbanBoard({
               onTransportClick={handleTransportClick}
               onEmptySlotClick={(day, isAddon) => onEmptySlotClick?.(format(date, "yyyy-MM-dd"), isAddon)}
               routeInfo={routeInfo}
-              onDrop={handleDrop}
             />
           )
         })}
