@@ -3,7 +3,7 @@
 import type React from "react"
 
 import { useState } from "react"
-import { Building, User, Package, FileText, Loader2 } from "lucide-react"
+import { Building, User, Package, FileText, Loader2, AlertTriangle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -16,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import type { Transport, CapacityLimits } from "@/lib/types"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
-import { format } from "date-fns"
+import { format, parseISO, isWithinInterval, startOfDay, endOfDay } from "date-fns"
 
 interface TransportRegistrationFormProps {
   onAddTransport: (transport: Omit<Transport, "id">) => void
@@ -75,6 +75,49 @@ export function TransportRegistrationForm({
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Calculate current capacity usage for a specific date
+  const calculateCapacityUsageForDate = (date: Date) => {
+    const dayStart = startOfDay(date)
+    const dayEnd = endOfDay(date)
+
+    const dateTransports = transports.filter((transport) => {
+      if (!transport.idealDeliveryDate) return false
+      try {
+        const transportDate = parseISO(transport.idealDeliveryDate)
+        return isWithinInterval(transportDate, { start: dayStart, end: dayEnd })
+      } catch {
+        return false
+      }
+    })
+
+    const totalWeight = dateTransports.reduce((sum, t) => sum + (Number(t.weight) || 0), 0)
+    const totalVolume = dateTransports.reduce((sum, t) => sum + (Number(t.volume) || 0), 0)
+
+    return {
+      weight: totalWeight,
+      volume: totalVolume,
+    }
+  }
+
+  // Check if adding this transport would exceed capacity
+  const wouldExceedCapacity = (date: Date, newWeight: number, newVolume: number) => {
+    const dayName = format(date, "EEEE").toLowerCase()
+    const capacityLimits = capacityPerDay[dayName] || { weight: 1000, volume: 10 }
+    const currentUsage = calculateCapacityUsageForDate(date)
+
+    const newTotalWeight = currentUsage.weight + newWeight
+    const newTotalVolume = currentUsage.volume + newVolume
+
+    return {
+      exceedsWeight: newTotalWeight > capacityLimits.weight,
+      exceedsVolume: newTotalVolume > capacityLimits.volume,
+      currentUsage,
+      capacityLimits,
+      newTotalWeight,
+      newTotalVolume,
+    }
+  }
+
   // Toggle unloading option
   const toggleUnloadingOption = (option: string) => {
     if (unloadingOptions.includes(option)) {
@@ -106,7 +149,37 @@ export function TransportRegistrationForm({
       return
     }
 
+    const transportWeight = Number(weight) || 0
+    const transportVolume = Number(volume) || 0
+
+    // Check capacity only if this is not an addon slot
+    if (!isAddonSlot) {
+      const capacityCheck = wouldExceedCapacity(idealDeliveryDate, transportWeight, transportVolume)
+
+      if (capacityCheck.exceedsWeight || capacityCheck.exceedsVolume) {
+        const exceedMessages = []
+        if (capacityCheck.exceedsWeight) {
+          exceedMessages.push(
+            `Weight: ${capacityCheck.newTotalWeight}kg exceeds limit of ${capacityCheck.capacityLimits.weight}kg`,
+          )
+        }
+        if (capacityCheck.exceedsVolume) {
+          exceedMessages.push(
+            `Volume: ${capacityCheck.newTotalVolume}m³ exceeds limit of ${capacityCheck.capacityLimits.volume}m³`,
+          )
+        }
+
+        setError(
+          `Cannot add to regular slots - capacity exceeded:\n${exceedMessages.join(
+            "\n",
+          )}\n\nPlease use additional slots or reduce the transport size.`,
+        )
+        return
+      }
+    }
+
     setIsSubmitting(true)
+    setError(null)
 
     // Ensure dates are valid ISO strings
     const idealDeliveryDateISO = idealDeliveryDate.toISOString()
@@ -133,8 +206,8 @@ export function TransportRegistrationForm({
       // Load details
       loadDescription,
       referenceNumber,
-      weight: Number(weight) || 0, // Ensure weight is a number
-      volume: Number(volume) || 0, // Ensure volume is a number
+      weight: transportWeight, // Ensure weight is a number
+      volume: transportVolume, // Ensure volume is a number
       size,
 
       // Unloading options
@@ -163,12 +236,48 @@ export function TransportRegistrationForm({
     setIsSubmitting(false)
   }
 
+  // Get capacity info for the selected date
+  const getCapacityInfo = () => {
+    if (!idealDeliveryDate) return null
+
+    const transportWeight = Number(weight) || 0
+    const transportVolume = Number(volume) || 0
+    const capacityCheck = wouldExceedCapacity(idealDeliveryDate, transportWeight, transportVolume)
+
+    return capacityCheck
+  }
+
+  const capacityInfo = getCapacityInfo()
+
   const formContent = (
     <form onSubmit={handleSubmit} className="space-y-6">
       {error && (
         <Alert variant="destructive">
           <AlertTitle>Error</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
+          <AlertDescription className="whitespace-pre-line">{error}</AlertDescription>
+        </Alert>
+      )}
+
+      {/* Capacity warning for regular slots */}
+      {!isAddonSlot && capacityInfo && (capacityInfo.exceedsWeight || capacityInfo.exceedsVolume) && (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Capacity Warning</AlertTitle>
+          <AlertDescription>
+            Adding this transport would exceed capacity limits. Consider using additional slots or reducing the
+            transport size.
+            <div className="mt-2 text-sm">
+              <div>
+                Current usage: {capacityInfo.currentUsage.weight}kg / {capacityInfo.currentUsage.volume}m³
+              </div>
+              <div>
+                After adding: {capacityInfo.newTotalWeight}kg / {capacityInfo.newTotalVolume}m³
+              </div>
+              <div>
+                Limits: {capacityInfo.capacityLimits.weight}kg / {capacityInfo.capacityLimits.volume}m³
+              </div>
+            </div>
+          </AlertDescription>
         </Alert>
       )}
 
@@ -428,7 +537,13 @@ export function TransportRegistrationForm({
         </div>
       </div>
 
-      <Button type="submit" className="w-full" disabled={isSubmitting}>
+      <Button
+        type="submit"
+        className="w-full"
+        disabled={
+          isSubmitting || (!isAddonSlot && capacityInfo && (capacityInfo.exceedsWeight || capacityInfo.exceedsVolume))
+        }
+      >
         {isSubmitting ? (
           <>
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />

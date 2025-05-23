@@ -7,6 +7,7 @@ import { EmptySlot } from "./empty-slot"
 import { CapacityProgressBar } from "./capacity-progress-bar"
 import type { DroppableColumnProps } from "@/lib/types"
 import { format } from "date-fns"
+import { AlertTriangle } from "lucide-react"
 
 export function DroppableColumn({
   day,
@@ -26,8 +27,10 @@ export function DroppableColumn({
   const formattedDay = day.charAt(0).toUpperCase() + day.slice(1)
   const transportIds = [...transports, ...addonTransports].map((t) => t.id)
 
-  // Always show one empty slot for adding transports
-  const showAddonEmptySlot = addonTransports.length > 0 || isAtCapacity
+  // Check if we're at or over capacity for weight or volume
+  const isWeightAtCapacity = capacityUsage.weight >= capacityLimits.weight
+  const isVolumeAtCapacity = capacityUsage.volume >= capacityLimits.volume
+  const isAnyCapacityReached = isWeightAtCapacity || isVolumeAtCapacity
 
   // Format the date - ensure we have a valid date
   const formattedDate = date && !isNaN(date.getTime()) ? format(date, "EEE, MMM d, yyyy") : ""
@@ -35,7 +38,7 @@ export function DroppableColumn({
   // Determine column header color based on capacity and drag over state
   const getColumnHeaderClass = () => {
     if (isOver) return "bg-blue-200" // Highlight when dragging over
-    if (isAtCapacity) return "bg-red-100"
+    if (isAnyCapacityReached) return "bg-red-100"
     switch (day.toLowerCase()) {
       case "monday":
         return "bg-blue-100"
@@ -98,16 +101,29 @@ export function DroppableColumn({
                   />
                 ))}
 
-                {/* Always show one empty slot for adding transports */}
-                <EmptySlot
-                  key={`empty-${day}`}
-                  day={day.toLowerCase()}
-                  onClick={() => (onEmptySlotClick ? onEmptySlotClick(day.toLowerCase(), false) : undefined)}
-                />
+                {/* Only show regular empty slot if capacity is not reached */}
+                {!isAnyCapacityReached && (
+                  <EmptySlot
+                    key={`empty-${day}`}
+                    day={day.toLowerCase()}
+                    onClick={() => (onEmptySlotClick ? onEmptySlotClick(day.toLowerCase(), false) : undefined)}
+                  />
+                )}
+
+                {/* Show capacity reached message instead of empty slot */}
+                {isAnyCapacityReached && transports.length === 0 && (
+                  <div className="border-2 border-dashed border-red-300 rounded-lg p-4 flex items-center justify-center bg-red-50">
+                    <div className="text-center text-red-600">
+                      <AlertTriangle className="h-6 w-6 mx-auto mb-2" />
+                      <p className="text-sm font-medium">Capacity Reached</p>
+                      <p className="text-xs">Use additional slots below</p>
+                    </div>
+                  </div>
+                )}
               </div>
 
-              {/* Addon section - only show if there are addon transports or if any capacity is reached */}
-              {showAddonEmptySlot && (
+              {/* Addon section - always show if there are addon transports OR if capacity is reached */}
+              {(addonTransports.length > 0 || isAnyCapacityReached) && (
                 <div className="space-y-3 border-t pt-4 border-dashed border-gray-300">
                   <h4 className="text-sm font-medium text-gray-500">Additional Slots (Over Capacity)</h4>
                   {addonTransports.map((transport, index) => (
@@ -120,7 +136,7 @@ export function DroppableColumn({
                     />
                   ))}
 
-                  {/* Always show one empty slot in addon section */}
+                  {/* Always show one empty slot in addon section when capacity is reached */}
                   <EmptySlot
                     key={`addon-empty-${day}`}
                     day={day.toLowerCase()}
