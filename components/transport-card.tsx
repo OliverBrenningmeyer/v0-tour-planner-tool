@@ -5,6 +5,7 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/componen
 import { Badge } from "@/components/ui/badge"
 import { Crane } from "./icons/crane"
 import type { Transport } from "@/lib/types"
+import { format, parseISO, isValid } from "date-fns"
 
 interface TransportCardProps {
   transport: Transport
@@ -52,22 +53,27 @@ export function TransportCard({ transport, isOverCapacity = false, isDragging = 
 
   // Format the latest delivery day for display
   const formatLatestDeliveryDay = () => {
-    if (!transport.latestDeliveryDay) return "Not specified"
+    if (!transport.latestDeliveryDate) return "Not specified"
 
-    // Capitalize first letter
-    const day = transport.latestDeliveryDay.charAt(0).toUpperCase() + transport.latestDeliveryDay.slice(1)
-    return `Until: ${day} (${transport.latestDeliveryTimeWindow})`
+    try {
+      const date = parseISO(transport.latestDeliveryDate)
+      if (!isValid(date)) return "Invalid date"
+      return `Until: ${format(date, "EEE, MMM d")} (${transport.latestDeliveryTimeWindow})`
+    } catch (error) {
+      console.error("Error formatting date:", error)
+      return "Invalid date"
+    }
   }
 
   return (
     <Card
-      className={`overflow-hidden border-l-4 ${
+      className={`overflow-hidden border-l-4 transition-all duration-200 ${
         isOverCapacity ? "border-red-500 bg-red-50" : "border-l-blue-500"
-      } hover:shadow-md transition-shadow ${isDragging ? "shadow-lg opacity-50" : ""} ${
+      } ${isDragging ? "shadow-2xl scale-105 rotate-2 z-50" : "hover:shadow-md"} ${
         onClick ? "cursor-pointer hover:bg-gray-50" : ""
       }`}
       onClick={(e) => {
-        // Only trigger onClick if we're not dragging
+        // Only trigger onClick if we're not dragging and not clicking on drag handle
         if (onClick && !isDragging) {
           e.stopPropagation()
           onClick()
@@ -76,7 +82,7 @@ export function TransportCard({ transport, isOverCapacity = false, isDragging = 
     >
       <CardHeader className="p-4 pb-2 flex flex-row items-start justify-between">
         <div className="flex items-center gap-2">
-          <GripVertical className="h-5 w-5 text-gray-400 cursor-grab" />
+          <GripVertical className="h-5 w-5 text-gray-400 cursor-grab hover:text-gray-600" />
           <CardTitle className="text-base font-medium flex items-center gap-2">
             {transport.customerName || transport.name}
           </CardTitle>
@@ -105,7 +111,7 @@ export function TransportCard({ transport, isOverCapacity = false, isDragging = 
       <CardFooter className="p-4 pt-0 flex justify-between items-center">
         <div className="flex items-center gap-2">
           <Badge variant="secondary" className="text-xs">
-            {transport.latestDeliveryTimeWindow}
+            {transport.idealDeliveryTimeWindow}
           </Badge>
         </div>
         <div className="flex items-center gap-1 text-xs text-gray-500">

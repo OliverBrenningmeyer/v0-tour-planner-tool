@@ -21,6 +21,8 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { useToast } from "@/hooks/use-toast"
 import type { AppConfig, CapacityLimits } from "@/lib/types"
 import { fetchConfigurations, updateAllConfigurations } from "@/lib/config-service"
+// Add import for the address helper
+import { getCustomerAddresses, getDepotAddresses } from "@/lib/address-helper"
 
 interface SettingsDialogProps {
   onConfigUpdate: (config: AppConfig) => void
@@ -248,11 +250,12 @@ export function SettingsDialog({ onConfigUpdate }: SettingsDialogProps) {
           </div>
         ) : (
           <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-4">
-            <TabsList className="grid grid-cols-4 mb-4">
+            <TabsList className="grid grid-cols-5 mb-4">
               <TabsTrigger value="capacity">Capacity</TabsTrigger>
               <TabsTrigger value="days">Days</TabsTrigger>
               <TabsTrigger value="timeWindows">Time Windows</TabsTrigger>
               <TabsTrigger value="tourPlanning">Tour Planning</TabsTrigger>
+              <TabsTrigger value="addresses">Addresses</TabsTrigger>
             </TabsList>
 
             <TabsContent value="capacity" className="space-y-4">
@@ -442,6 +445,46 @@ export function SettingsDialog({ onConfigUpdate }: SettingsDialogProps) {
                       <li>• Total duration includes driving time + stop time for each delivery</li>
                       <li>• Distance calculations use direct routes between addresses</li>
                     </ul>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="addresses" className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Address References</CardTitle>
+                  <CardDescription>List of valid addresses for route planning.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="space-y-4">
+                    <h3 className="font-medium">Depot Addresses</h3>
+                    <div className="bg-muted p-3 rounded-md max-h-40 overflow-y-auto">
+                      <ul className="space-y-1">
+                        {getDepotAddresses().map((address) => (
+                          <li key={address} className="text-sm">
+                            {address}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <h3 className="font-medium">Customer Addresses</h3>
+                    <div className="bg-muted p-3 rounded-md max-h-60 overflow-y-auto">
+                      <ul className="space-y-1">
+                        {getCustomerAddresses().map((address) => (
+                          <li key={address} className="text-sm">
+                            {address}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      These addresses are used for route planning and distance calculations. You can copy and paste
+                      these addresses when creating new transports.
+                    </p>
                   </div>
                 </CardContent>
               </Card>

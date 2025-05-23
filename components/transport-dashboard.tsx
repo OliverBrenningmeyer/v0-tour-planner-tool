@@ -16,6 +16,8 @@ import { Loader2, Plus } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { TransportRegistrationDialog } from "./transport-registration-dialog"
+import { ensureRealAddresses } from "@/lib/address-helper"
+import { getCustomerAddresses } from "@/lib/address-helper"
 
 const DEFAULT_CONFIG: AppConfig = {
   capacitySettings: {
@@ -34,6 +36,10 @@ const DEFAULT_CONFIG: AppConfig = {
   },
   availableDays: ["monday", "wednesday", "friday"],
   timeWindows: ["Morning", "Afternoon"],
+  tourPlanning: {
+    depotAddress: "Berlin Zentrale",
+    stopTimeMinutes: 30,
+  },
 }
 
 // Generate sample transport data
@@ -130,16 +136,7 @@ const generateSampleTransportData = (selectedWeek: Date): Omit<Transport, "id">[
     },
   ]
 
-  const addresses = [
-    "Hauptstraße 15, 10115 Berlin",
-    "Müllerstraße 42, 13353 Berlin",
-    "Kantstraße 88, 10627 Berlin",
-    "Friedrichstraße 123, 10117 Berlin",
-    "Alexanderplatz 7, 10178 Berlin",
-    "Potsdamer Platz 1, 10785 Berlin",
-    "Unter den Linden 25, 10117 Berlin",
-    "Kurfürstendamm 195, 10707 Berlin",
-  ]
+  const addresses = getCustomerAddresses()
 
   const phones = [
     "+49 30 12345678",
@@ -272,6 +269,7 @@ export default function TransportDashboard() {
 
   // Fetch transports and configurations from Supabase on component mount
   useEffect(() => {
+    // Find the initialize function and modify it to ensure real addresses
     const initialize = async () => {
       try {
         setLoading(true)
@@ -279,10 +277,27 @@ export default function TransportDashboard() {
 
         // Fetch configurations first
         const configData = await fetchConfigurations()
-        setConfig(configData)
+        setConfig({
+          ...configData,
+          // Ensure tourPlanning exists with default values if not present
+          tourPlanning: configData.tourPlanning || {
+            depotAddress: "Berlin Zentrale",
+            stopTimeMinutes: 30,
+          },
+        })
 
         // Fetch transports from Supabase
-        const fetchedTransports = await fetchTransports()
+        let fetchedTransports = await fetchTransports()
+
+        // Ensure all transports have real addresses
+        fetchedTransports = ensureRealAddresses(fetchedTransports)
+
+        // Update all transports with real addresses in the database
+        for (const transport of fetchedTransports) {
+          await updateTransport(transport)
+        }
+
+        // Rest of the initialize function remains the same...
 
         // Check if we have any transports for the current week
         const weekStart = startOfWeek(selectedWeek, { weekStartsOn: 1 })
