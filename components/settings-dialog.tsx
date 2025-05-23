@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Settings, Save, X, Plus, Loader2 } from "lucide-react"
+import { Settings, Save, X, Plus, Loader2, MapPin, Clock } from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -38,6 +38,10 @@ export function SettingsDialog({ onConfigUpdate }: SettingsDialogProps) {
   const [availableDays, setAvailableDays] = useState<string[]>([])
   const [timeWindows, setTimeWindows] = useState<string[]>([])
 
+  // Tour planning settings
+  const [depotAddress, setDepotAddress] = useState("")
+  const [stopTimeMinutes, setStopTimeMinutes] = useState<string>("30")
+
   // New item inputs
   const [newDay, setNewDay] = useState("")
   const [newTimeWindow, setNewTimeWindow] = useState("")
@@ -59,6 +63,8 @@ export function SettingsDialog({ onConfigUpdate }: SettingsDialogProps) {
       setCapacitySettings(config.capacitySettings)
       setAvailableDays(config.availableDays)
       setTimeWindows(config.timeWindows)
+      setDepotAddress(config.tourPlanning.depotAddress)
+      setStopTimeMinutes(config.tourPlanning.stopTimeMinutes.toString())
     } catch (err) {
       console.error("Failed to load configurations:", err)
       setError("Failed to load configurations. Please try again.")
@@ -105,10 +111,28 @@ export function SettingsDialog({ onConfigUpdate }: SettingsDialogProps) {
         return
       }
 
+      // Validate tour planning settings
+      if (!depotAddress.trim()) {
+        setError("Depot address is required")
+        setSaving(false)
+        return
+      }
+
+      const stopTime = Number.parseInt(stopTimeMinutes, 10)
+      if (isNaN(stopTime) || stopTime < 1) {
+        setError("Stop time must be a valid number greater than 0")
+        setSaving(false)
+        return
+      }
+
       const config: AppConfig = {
         capacitySettings,
         availableDays,
         timeWindows,
+        tourPlanning: {
+          depotAddress: depotAddress.trim(),
+          stopTimeMinutes: stopTime,
+        },
       }
 
       await updateAllConfigurations(config)
@@ -206,7 +230,7 @@ export function SettingsDialog({ onConfigUpdate }: SettingsDialogProps) {
         <DialogHeader>
           <DialogTitle>System Settings</DialogTitle>
           <DialogDescription>
-            Configure capacity, available days, and time windows for transport scheduling.
+            Configure capacity, available days, time windows, and tour planning for transport scheduling.
           </DialogDescription>
         </DialogHeader>
 
@@ -224,10 +248,11 @@ export function SettingsDialog({ onConfigUpdate }: SettingsDialogProps) {
           </div>
         ) : (
           <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-4">
-            <TabsList className="grid grid-cols-3 mb-4">
-              <TabsTrigger value="capacity">Capacity Settings</TabsTrigger>
-              <TabsTrigger value="days">Available Days</TabsTrigger>
+            <TabsList className="grid grid-cols-4 mb-4">
+              <TabsTrigger value="capacity">Capacity</TabsTrigger>
+              <TabsTrigger value="days">Days</TabsTrigger>
               <TabsTrigger value="timeWindows">Time Windows</TabsTrigger>
+              <TabsTrigger value="tourPlanning">Tour Planning</TabsTrigger>
             </TabsList>
 
             <TabsContent value="capacity" className="space-y-4">
@@ -239,7 +264,7 @@ export function SettingsDialog({ onConfigUpdate }: SettingsDialogProps) {
                 <CardContent className="space-y-6">
                   {availableDays.length === 0 ? (
                     <div className="text-center py-4 text-muted-foreground">
-                      No available days configured. Please add days in the Available Days tab.
+                      No available days configured. Please add days in the Days tab.
                     </div>
                   ) : (
                     availableDays.map((day) => (
@@ -314,15 +339,6 @@ export function SettingsDialog({ onConfigUpdate }: SettingsDialogProps) {
                       Add
                     </Button>
                   </div>
-
-                  <div className="text-sm text-muted-foreground mt-2">
-                    <p>Tips:</p>
-                    <ul className="list-disc list-inside ml-2">
-                      <li>Day names should be lowercase (e.g., monday, tuesday)</li>
-                      <li>Each day added will get default capacity settings</li>
-                      <li>You can adjust capacities in the Capacity Settings tab</li>
-                    </ul>
-                  </div>
                 </CardContent>
               </Card>
             </TabsContent>
@@ -367,13 +383,64 @@ export function SettingsDialog({ onConfigUpdate }: SettingsDialogProps) {
                       Add
                     </Button>
                   </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
 
-                  <div className="text-sm text-muted-foreground mt-2">
-                    <p>Examples of time windows:</p>
-                    <ul className="list-disc list-inside ml-2">
-                      <li>Morning (8:00 - 12:00)</li>
-                      <li>Afternoon (12:00 - 17:00)</li>
-                      <li>Evening (17:00 - 20:00)</li>
+            <TabsContent value="tourPlanning" className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Tour Planning Settings</CardTitle>
+                  <CardDescription>Configure depot location and stop times for route calculation.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="depotAddress" className="flex items-center gap-2">
+                        <MapPin className="h-4 w-4" />
+                        Depot Address
+                      </Label>
+                      <Input
+                        id="depotAddress"
+                        value={depotAddress}
+                        onChange={(e) => setDepotAddress(e.target.value)}
+                        placeholder="Enter depot/warehouse address"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Starting point for all delivery routes. Used to calculate total distance and duration.
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="stopTimeMinutes" className="flex items-center gap-2">
+                        <Clock className="h-4 w-4" />
+                        Stop Time per Delivery
+                      </Label>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          id="stopTimeMinutes"
+                          type="number"
+                          min="1"
+                          max="120"
+                          value={stopTimeMinutes}
+                          onChange={(e) => setStopTimeMinutes(e.target.value)}
+                          className="w-24"
+                        />
+                        <span className="text-sm text-muted-foreground">minutes</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Time allocated for each delivery stop (unloading, paperwork, etc.)
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="bg-blue-50 p-4 rounded-md">
+                    <h4 className="font-medium text-blue-900 mb-2">Route Calculation</h4>
+                    <ul className="text-sm text-blue-800 space-y-1">
+                      <li>• Routes start and end at the depot address</li>
+                      <li>• Deliveries are ordered by time window (Morning first, then Afternoon)</li>
+                      <li>• Total duration includes driving time + stop time for each delivery</li>
+                      <li>• Distance calculations use direct routes between addresses</li>
                     </ul>
                   </div>
                 </CardContent>

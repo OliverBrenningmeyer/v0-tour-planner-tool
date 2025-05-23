@@ -62,6 +62,7 @@ export interface DroppableColumnProps {
   isAtCapacity: boolean
   onTransportClick?: (transport: Transport) => void
   onEmptySlotClick?: (day: string, isAddonSlot?: boolean) => void
+  routeInfo?: RouteInfo
 }
 
 // Updated interface for capacity limits - removed count
@@ -76,10 +77,34 @@ export interface CapacityUsage {
   volume: number
 }
 
+// New interfaces for tour planning
+export interface TourPlanningSettings {
+  depotAddress: string
+  stopTimeMinutes: number
+}
+
+export interface RouteInfo {
+  totalDistance: number // in kilometers
+  totalDuration: number // in minutes (driving time only)
+  totalDurationWithStops: number // in minutes (driving time + stop times)
+  stops: RouteStop[]
+}
+
+export interface RouteStop {
+  address: string
+  customerName: string
+  distanceFromPrevious: number // in kilometers
+  durationFromPrevious: number // in minutes
+  stopDuration: number // in minutes
+  timeWindow: "Morning" | "Afternoon"
+  transportId: string
+}
+
 export interface AppConfig {
   capacitySettings: {
     [key: string]: CapacityLimits
   }
   availableDays: string[]
   timeWindows: string[]
+  tourPlanning: TourPlanningSettings
 }

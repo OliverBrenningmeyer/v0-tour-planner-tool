@@ -597,6 +597,7 @@ export default function TransportDashboard() {
           onEmptySlotClick={handleEmptySlotClick}
           selectedWeek={selectedWeek}
           availableDays={config.availableDays}
+          config={config}
         />
       </div>
 

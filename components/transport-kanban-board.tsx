@@ -18,8 +18,9 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { TransportCard } from "./transport-card"
 import { DroppableColumn } from "./droppable-column"
 import { TransportDetailDialog } from "./transport-detail-dialog"
-import type { Transport, CapacityLimits, CapacityUsage } from "@/lib/types"
+import type { Transport, CapacityLimits, CapacityUsage, AppConfig } from "@/lib/types"
 import { startOfWeek, addDays, format, parseISO } from "date-fns"
+import { calculateRoute } from "@/lib/route-service"
 
 interface TransportKanbanBoardProps {
   transports: Transport[]
@@ -30,6 +31,7 @@ interface TransportKanbanBoardProps {
   onEmptySlotClick?: (day: string, isAddon?: boolean) => void
   selectedWeek: Date
   availableDays?: string[]
+  config: AppConfig
 }
 
 export function TransportKanbanBoard({
@@ -39,6 +41,7 @@ export function TransportKanbanBoard({
   onEmptySlotClick,
   selectedWeek,
   availableDays = ["monday", "wednesday", "friday"],
+  config,
 }: TransportKanbanBoardProps) {
   const [activeTransport, setActiveTransport] = useState<Transport | null>(null)
   const [dragError, setDragError] = useState<string | null>(null)
@@ -101,13 +104,23 @@ export function TransportKanbanBoard({
   const getTransportsForDate = (date: Date, capacityLimits: CapacityLimits) => {
     const allDateTransports = getTransportsByDate(date)
 
+    // Sort by time window first (Morning before Afternoon), then by creation date
+    const sortedTransports = [...allDateTransports].sort((a, b) => {
+      // First sort by time window
+      const timeWindowOrder = { Morning: 0, Afternoon: 1 }
+      const aTimeOrder = timeWindowOrder[a.idealDeliveryTimeWindow] ?? 0
+      const bTimeOrder = timeWindowOrder[b.idealDeliveryTimeWindow] ?? 0
+
+      if (aTimeOrder !== bTimeOrder) {
+        return aTimeOrder - bTimeOrder
+      }
+
+      // Then sort by creation date for consistent ordering within same time window
+      return new Date(a.createdDate).getTime() - new Date(b.createdDate).getTime()
+    })
+
     const regularTransports: Transport[] = []
     const addonTransports: Transport[] = []
-
-    // Sort by creation date to ensure consistent ordering
-    const sortedTransports = [...allDateTransports].sort(
-      (a, b) => new Date(a.createdDate).getTime() - new Date(b.createdDate).getTime(),
-    )
 
     // Track running totals
     let runningWeight = 0
@@ -130,14 +143,6 @@ export function TransportKanbanBoard({
     }
 
     return { regularTransports, addonTransports }
-  }
-
-  // Check if a day is at capacity (any limit reached)
-  const isDayAtCapacityForDay = (day: string) => {
-    const capacityLimits = capacitySettings[day] || { weight: 1000, volume: 10 }
-    const capacityUsage = calculateCapacityUsageForDate(getDayDate(day))
-
-    return capacityUsage.weight >= capacityLimits.weight || capacityUsage.volume >= capacityLimits.volume
   }
 
   const isDayAtCapacity = (date: Date) => {
@@ -287,6 +292,11 @@ export function TransportKanbanBoard({
             // Determine which transports are over capacity
             const { regularTransports, addonTransports } = getTransportsForDate(date, capacityLimits)
 
+            // Calculate route information for this day
+            const allDayTransports = [...regularTransports, ...addonTransports]
+            const routeInfo =
+              allDayTransports.length > 0 ? calculateRoute(allDayTransports, config.tourPlanning) : undefined
+
             return (
               <DroppableColumn
                 key={format(date, "yyyy-MM-dd")}
@@ -299,6 +309,7 @@ export function TransportKanbanBoard({
                 isAtCapacity={isDayAtCapacity(date)}
                 onTransportClick={handleTransportClick}
                 onEmptySlotClick={(day, isAddon) => onEmptySlotClick?.(format(date, "yyyy-MM-dd"), isAddon)}
+                routeInfo={routeInfo}
               />
             )
           })}

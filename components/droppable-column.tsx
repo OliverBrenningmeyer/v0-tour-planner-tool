@@ -7,7 +7,8 @@ import { EmptySlot } from "./empty-slot"
 import { CapacityProgressBar } from "./capacity-progress-bar"
 import type { DroppableColumnProps } from "@/lib/types"
 import { format } from "date-fns"
-import { AlertTriangle } from "lucide-react"
+import { AlertTriangle, MapPin, Clock, Route } from "lucide-react"
+import { formatDistance, formatDuration } from "@/lib/route-service"
 
 export function DroppableColumn({
   day,
@@ -19,6 +20,7 @@ export function DroppableColumn({
   isAtCapacity,
   onTransportClick,
   onEmptySlotClick,
+  routeInfo,
 }: DroppableColumnProps) {
   const { setNodeRef, isOver } = useDroppable({
     id: day.toLowerCase(),
@@ -51,6 +53,8 @@ export function DroppableColumn({
     }
   }
 
+  const totalTransports = transports.length + addonTransports.length
+
   return (
     <div className="flex flex-col h-full">
       <div className={`p-4 rounded-t-lg ${getColumnHeaderClass()}`}>
@@ -60,6 +64,29 @@ export function DroppableColumn({
             {formattedDate && <p className="text-sm text-gray-600">{formattedDate}</p>}
           </div>
         </div>
+
+        {/* Route Information */}
+        {routeInfo && totalTransports > 0 && (
+          <div className="mb-3 p-3 bg-white/50 rounded-md border">
+            <div className="flex items-center gap-2 mb-2">
+              <Route className="h-4 w-4 text-blue-600" />
+              <span className="text-sm font-medium text-gray-700">Tour Summary</span>
+            </div>
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div className="flex items-center gap-1">
+                <MapPin className="h-3 w-3 text-gray-500" />
+                <span>{formatDistance(routeInfo.totalDistance)}</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <Clock className="h-3 w-3 text-gray-500" />
+                <span>{formatDuration(routeInfo.totalDurationWithStops)}</span>
+              </div>
+            </div>
+            <div className="text-xs text-gray-500 mt-1">
+              {routeInfo.stops.length} stops • {formatDuration(routeInfo.totalDuration)} driving
+            </div>
+          </div>
+        )}
 
         {/* Capacity progress bars - only showing weight and volume */}
         <div className="space-y-2">
