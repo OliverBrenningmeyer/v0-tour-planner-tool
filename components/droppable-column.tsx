@@ -1,7 +1,9 @@
 "use client"
 
-import { useDroppable } from "@dnd-kit/core"
-import { DraggableTransportCard } from "./draggable-transport-card"
+import type React from "react"
+
+import { useState } from "react"
+import { TransportCard } from "./transport-card"
 import { EmptySlot } from "./empty-slot"
 import { CapacityProgressBar } from "./capacity-progress-bar"
 import type { DroppableColumnProps } from "@/lib/types"
@@ -20,14 +22,12 @@ export function DroppableColumn({
   onTransportClick,
   onEmptySlotClick,
   routeInfo,
+  onDrop,
 }: DroppableColumnProps) {
+  const [isOver, setIsOver] = useState(false)
+
   // Use the date string as the droppable ID
   const dateString = date ? format(date, "yyyy-MM-dd") : day
-
-  const { setNodeRef, isOver } = useDroppable({
-    id: dateString,
-  })
-
   const formattedDay = day.charAt(0).toUpperCase() + day.slice(1)
   const formattedDate = date && !isNaN(date.getTime()) ? format(date, "EEE, MMM d, yyyy") : ""
 
@@ -35,6 +35,37 @@ export function DroppableColumn({
   const isWeightAtCapacity = capacityUsage.weight >= capacityLimits.weight
   const isVolumeAtCapacity = capacityUsage.volume >= capacityLimits.volume
   const isAnyCapacityReached = isWeightAtCapacity || isVolumeAtCapacity
+
+  // Handle drag over
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    // Prevent default to allow drop
+    e.preventDefault()
+
+    // Set the drop effect
+    e.dataTransfer.dropEffect = "move"
+
+    // Update the isOver state
+    setIsOver(true)
+  }
+
+  // Handle drag leave
+  const handleDragLeave = () => {
+    setIsOver(false)
+  }
+
+  // Handle drop
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    setIsOver(false)
+
+    // Get the transport ID from the drag data
+    const transportId = e.dataTransfer.getData("text/plain")
+
+    // Call the onDrop callback if provided
+    if (onDrop && transportId) {
+      onDrop(transportId, dateString)
+    }
+  }
 
   // Determine column header color based on capacity and drag over state
   const getColumnHeaderClass = () => {
@@ -105,7 +136,9 @@ export function DroppableColumn({
       </div>
 
       <div
-        ref={setNodeRef}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
         className={`bg-gray-50 p-4 rounded-b-lg flex-1 min-h-[500px] border-2 border-t-0 transition-colors ${
           isOver ? "bg-blue-50 border-blue-300" : "border-gray-200"
         }`}
@@ -123,11 +156,10 @@ export function DroppableColumn({
             <div className="space-y-3">
               <h4 className="text-sm font-medium text-gray-500">Regular Slots</h4>
               {transports.map((transport) => (
-                <DraggableTransportCard
+                <TransportCard
                   key={transport.id}
                   transport={transport}
                   isOverCapacity={false}
-                  index={0} // Not used in this implementation
                   onClick={onTransportClick ? () => onTransportClick(transport) : undefined}
                 />
               ))}
@@ -158,11 +190,10 @@ export function DroppableColumn({
               <div className="space-y-3 border-t pt-4 border-dashed border-gray-300">
                 <h4 className="text-sm font-medium text-gray-500">Additional Slots (Over Capacity)</h4>
                 {addonTransports.map((transport) => (
-                  <DraggableTransportCard
+                  <TransportCard
                     key={transport.id}
                     transport={transport}
                     isOverCapacity={true}
-                    index={0} // Not used in this implementation
                     onClick={onTransportClick ? () => onTransportClick(transport) : undefined}
                   />
                 ))}

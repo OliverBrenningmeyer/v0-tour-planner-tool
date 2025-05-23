@@ -1,20 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import {
-  DndContext,
-  DragOverlay,
-  closestCorners,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-  type DragStartEvent,
-} from "@dnd-kit/core"
-import { sortableKeyboardCoordinates } from "@dnd-kit/sortable"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { TransportCard } from "./transport-card"
 import { DroppableColumn } from "./droppable-column"
 import { TransportDetailDialog } from "./transport-detail-dialog"
 import type { Transport, CapacityLimits, CapacityUsage, AppConfig } from "@/lib/types"
@@ -43,23 +30,10 @@ export function TransportKanbanBoard({
   availableDays = ["monday", "wednesday", "friday"],
   config,
 }: TransportKanbanBoardProps) {
-  const [activeTransport, setActiveTransport] = useState<Transport | null>(null)
   const [dragError, setDragError] = useState<string | null>(null)
   const [selectedTransport, setSelectedTransport] = useState<Transport | null>(null)
   const [detailDialogOpen, setDetailDialogOpen] = useState(false)
   const { toast } = useToast()
-
-  // Configure sensors for drag and drop
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 8, // Require 8px movement before drag starts
-      },
-    }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    }),
-  )
 
   // Safely parse ISO date string
   const safeParseISO = (dateString: string | undefined): Date | null => {
@@ -174,47 +148,24 @@ export function TransportKanbanBoard({
     onTransportsChange(updatedTransports)
   }
 
-  // Handle drag start
-  const handleDragStart = (event: DragStartEvent) => {
-    const { active } = event
-    const transport = transports.find((t) => t.id === active.id)
-    if (transport) {
-      setActiveTransport(transport)
-    }
-    setDragError(null)
-  }
-
-  // Handle drag end
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event
-
-    setActiveTransport(null)
-
-    if (!over) return
-
-    const transportId = active.id as string
-    const targetColumnId = over.id as string
-
+  // Handle drop
+  const handleDrop = (transportId: string, targetDateString: string) => {
+    // Find the transport to move
     const transportToMove = transports.find((t) => t.id === transportId)
-    if (!transportToMove) return
-
-    // Parse the target date from the column ID (format: YYYY-MM-DD)
-    let targetDate: Date | null = null
-
-    try {
-      if (targetColumnId.match(/^\d{4}-\d{2}-\d{2}$/)) {
-        const parsedDate = parseISO(targetColumnId)
-        if (isValid(parsedDate)) {
-          targetDate = parsedDate
-        }
-      }
-    } catch (error) {
-      console.error("Error parsing target date:", error)
+    if (!transportToMove) {
+      console.error("Transport not found:", transportId)
       return
     }
 
-    if (!targetDate) {
-      console.error("Invalid target date:", targetColumnId)
+    // Parse the target date
+    let targetDate: Date | null = null
+    try {
+      targetDate = parseISO(targetDateString)
+      if (!isValid(targetDate)) {
+        throw new Error("Invalid date")
+      }
+    } catch (error) {
+      console.error("Error parsing target date:", error)
       return
     }
 
@@ -280,48 +231,33 @@ export function TransportKanbanBoard({
         </Alert>
       )}
 
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCorners}
-        onDragStart={handleDragStart}
-        onDragEnd={handleDragEnd}
-      >
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {weekDates.map((date) => {
-            const dayName = format(date, "EEEE").toLowerCase()
-            const capacityLimits = capacitySettings[dayName] || { weight: 1000, volume: 10 }
-            const capacityUsage = calculateCapacityUsageForDate(date)
-            const { regularTransports, addonTransports } = getTransportsForDate(date, capacityLimits)
-            const allDayTransports = [...regularTransports, ...addonTransports]
-            const routeInfo = allDayTransports.length > 0 ? calculateRoute(allDayTransports, tourPlanning) : undefined
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {weekDates.map((date) => {
+          const dayName = format(date, "EEEE").toLowerCase()
+          const capacityLimits = capacitySettings[dayName] || { weight: 1000, volume: 10 }
+          const capacityUsage = calculateCapacityUsageForDate(date)
+          const { regularTransports, addonTransports } = getTransportsForDate(date, capacityLimits)
+          const allDayTransports = [...regularTransports, ...addonTransports]
+          const routeInfo = allDayTransports.length > 0 ? calculateRoute(allDayTransports, tourPlanning) : undefined
 
-            return (
-              <DroppableColumn
-                key={format(date, "yyyy-MM-dd")}
-                day={dayName}
-                date={date}
-                transports={regularTransports}
-                addonTransports={addonTransports}
-                capacityLimits={capacityLimits}
-                capacityUsage={capacityUsage}
-                isAtCapacity={isDayAtCapacity(date)}
-                onTransportClick={handleTransportClick}
-                onEmptySlotClick={(day, isAddon) => onEmptySlotClick?.(format(date, "yyyy-MM-dd"), isAddon)}
-                routeInfo={routeInfo}
-              />
-            )
-          })}
-        </div>
-
-        {/* Drag overlay */}
-        <DragOverlay>
-          {activeTransport ? (
-            <div className="transform rotate-3 scale-105">
-              <TransportCard transport={activeTransport} isDragging={true} />
-            </div>
-          ) : null}
-        </DragOverlay>
-      </DndContext>
+          return (
+            <DroppableColumn
+              key={format(date, "yyyy-MM-dd")}
+              day={dayName}
+              date={date}
+              transports={regularTransports}
+              addonTransports={addonTransports}
+              capacityLimits={capacityLimits}
+              capacityUsage={capacityUsage}
+              isAtCapacity={isDayAtCapacity(date)}
+              onTransportClick={handleTransportClick}
+              onEmptySlotClick={(day, isAddon) => onEmptySlotClick?.(format(date, "yyyy-MM-dd"), isAddon)}
+              routeInfo={routeInfo}
+              onDrop={handleDrop}
+            />
+          )
+        })}
+      </div>
 
       {/* Transport detail dialog */}
       <TransportDetailDialog

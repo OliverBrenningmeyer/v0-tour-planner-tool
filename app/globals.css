@@ -92,3 +92,33 @@ body {
     @apply bg-background text-foreground;
   }
 }
+
+/* Drag and drop styles */
+[draggable="true"] {
+  cursor: grab;
+}
+
+[draggable="true"]:active {
+  cursor: grabbing;
+}
+
+body.dragging * {
+  cursor: grabbing !important;
+}
+
+/* Add a subtle animation for the drag effect */
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.02);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+[draggable="true"]:active {
+  animation: pulse 1s infinite;
+}
