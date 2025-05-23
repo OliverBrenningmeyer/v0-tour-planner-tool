@@ -18,12 +18,14 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { TransportCard } from "./transport-card"
 import { DroppableColumn } from "./droppable-column"
 import { TransportDetailDialog } from "./transport-detail-dialog"
-import type { Transport } from "@/lib/types"
-import { startOfWeek, addDays } from "date-fns"
+import type { Transport, CapacityLimits, CapacityUsage } from "@/lib/types"
+import { startOfWeek, addDays, format, parseISO } from "date-fns"
 
 interface TransportKanbanBoardProps {
   transports: Transport[]
-  capacityPerDay: Record<string, number>
+  capacitySettings: {
+    [key: string]: CapacityLimits
+  }
   onTransportsChange: (transports: Transport[]) => void
   onEmptySlotClick?: (day: string, isAddon?: boolean) => void
   selectedWeek: Date
@@ -32,7 +34,7 @@ interface TransportKanbanBoardProps {
 
 export function TransportKanbanBoard({
   transports,
-  capacityPerDay,
+  capacitySettings,
   onTransportsChange,
   onEmptySlotClick,
   selectedWeek,
@@ -56,21 +58,94 @@ export function TransportKanbanBoard({
     }),
   )
 
-  // Group transports by ideal delivery day
-  const getTransportsByDay = (day: string) => {
-    return transports.filter((t) => t.idealDeliveryDay === day)
+  // Group transports by their ideal delivery date
+  const getTransportsByDate = (date: Date) => {
+    const dateString = format(date, "yyyy-MM-dd")
+    return transports.filter((t) => {
+      if (!t.idealDeliveryDate) return false
+      try {
+        const transportDate = parseISO(t.idealDeliveryDate)
+        return format(transportDate, "yyyy-MM-dd") === dateString
+      } catch {
+        return false
+      }
+    })
   }
 
-  // Group transports by ideal delivery day and split into regular and addon
-  const getTransportsForDay = (day: string) => {
-    const allDayTransports = getTransportsByDay(day)
-    const capacityLimit = capacityPerDay[day] || 0
+  // Calculate capacity usage for a specific date
+  const calculateCapacityUsageForDate = (date: Date): CapacityUsage => {
+    const dateTransports = getTransportsByDate(date)
 
-    // Split into regular and addon transports
-    const regularTransports = allDayTransports.slice(0, capacityLimit)
-    const addonTransports = allDayTransports.slice(capacityLimit)
+    const totalWeight = dateTransports.reduce((sum, t) => sum + (Number(t.weight) || 0), 0)
+    const totalVolume = dateTransports.reduce((sum, t) => sum + (Number(t.volume) || 0), 0)
+
+    return {
+      weight: totalWeight,
+      volume: totalVolume,
+    }
+  }
+
+  // Get the dates for the selected week based on available days
+  const getWeekDates = () => {
+    const dates: Date[] = []
+    for (let i = 0; i < 7; i++) {
+      const date = addDays(weekStart, i)
+      const dayName = format(date, "EEEE").toLowerCase()
+      if (availableDays.includes(dayName)) {
+        dates.push(date)
+      }
+    }
+    return dates
+  }
+
+  const getTransportsForDate = (date: Date, capacityLimits: CapacityLimits) => {
+    const allDateTransports = getTransportsByDate(date)
+
+    const regularTransports: Transport[] = []
+    const addonTransports: Transport[] = []
+
+    // Sort by creation date to ensure consistent ordering
+    const sortedTransports = [...allDateTransports].sort(
+      (a, b) => new Date(a.createdDate).getTime() - new Date(b.createdDate).getTime(),
+    )
+
+    // Track running totals
+    let runningWeight = 0
+    let runningVolume = 0
+
+    for (const transport of sortedTransports) {
+      const transportWeight = Number(transport.weight) || 0
+      const transportVolume = Number(transport.volume) || 0
+
+      const newWeight = runningWeight + transportWeight
+      const newVolume = runningVolume + transportVolume
+
+      if (newWeight <= capacityLimits.weight && newVolume <= capacityLimits.volume) {
+        regularTransports.push(transport)
+        runningWeight = newWeight
+        runningVolume = newVolume
+      } else {
+        addonTransports.push(transport)
+      }
+    }
 
     return { regularTransports, addonTransports }
+  }
+
+  // Check if a day is at capacity (any limit reached)
+  const isDayAtCapacityForDay = (day: string) => {
+    const capacityLimits = capacitySettings[day] || { weight: 1000, volume: 10 }
+    const capacityUsage = calculateCapacityUsageForDate(getDayDate(day))
+
+    return capacityUsage.weight >= capacityLimits.weight || capacityUsage.volume >= capacityLimits.volume
+  }
+
+  const isDayAtCapacity = (date: Date) => {
+    const dayName = format(date, "EEEE").toLowerCase()
+    const capacityLimits = capacitySettings[dayName] || { weight: 1000, volume: 10 }
+    const capacityUsage = calculateCapacityUsageForDate(date)
+
+    return capacityUsage.weight >= capacityLimits.weight || capacityUsage.volume >= capacityLimits.volume
   }
 
   // Calculate the actual dates for each day of the selected week
@@ -92,12 +167,6 @@ export function TransportKanbanBoard({
 
     const dayOffset = dayMap[dayName.toLowerCase()] ?? 0
     return addDays(new Date(weekStart), dayOffset)
-  }
-
-  // Check if a day is at capacity
-  const isDayAtCapacity = (day: string) => {
-    const dayTransports = getTransportsByDay(day)
-    return dayTransports.length >= (capacityPerDay[day] || 0)
   }
 
   // Handle transport click to open detail dialog
@@ -139,7 +208,6 @@ export function TransportKanbanBoard({
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event
 
-    // Reset states
     setActiveTransport(null)
     setActiveColumn(null)
 
@@ -148,45 +216,48 @@ export function TransportKanbanBoard({
     const activeId = active.id
     const overId = over.id
 
-    // Find the active transport
     const transportToMove = transports.find((t) => t.id === activeId)
     if (!transportToMove) return
 
-    // Determine target column (either from over.id or from activeColumn)
-    let targetColumn: string | null = null
+    // Determine target date from overId (which should be a date string like '2024-01-15')
+    let targetDate: Date | null = null
 
-    // If dropping directly on a column
-    if (typeof overId === "string" && availableDays.includes(overId)) {
-      targetColumn = overId
-    }
-    // If dropping on another transport, get its column
-    else if (typeof overId === "string") {
-      const overTransport = transports.find((t) => t.id === overId)
-      if (overTransport) {
-        targetColumn = overTransport.idealDeliveryDay
+    if (typeof overId === "string") {
+      try {
+        // If overId is a date string
+        if (overId.includes("-")) {
+          targetDate = parseISO(overId)
+        } else {
+          // If dropping on another transport, get its date
+          const overTransport = transports.find((t) => t.id === overId)
+          if (overTransport && overTransport.idealDeliveryDate) {
+            targetDate = parseISO(overTransport.idealDeliveryDate)
+          }
+        }
+      } catch {
+        return
       }
     }
 
-    // If we couldn't determine a target column, exit
-    if (!targetColumn) return
+    if (!targetDate) return
 
-    // If trying to move to the same column, no change needed
-    if (transportToMove.idealDeliveryDay === targetColumn) return
+    // If trying to move to the same date, no change needed
+    const currentDate = transportToMove.idealDeliveryDate ? parseISO(transportToMove.idealDeliveryDate) : null
+    if (currentDate && format(currentDate, "yyyy-MM-dd") === format(targetDate, "yyyy-MM-dd")) return
 
     // Create updated transports array with the moved transport
     const updatedTransports = transports.map((t) => {
       if (t.id === transportToMove.id) {
         return {
           ...t,
-          idealDeliveryDay: targetColumn,
-          // Also update deliveryDay for compatibility with existing code
-          deliveryDay: targetColumn,
+          idealDeliveryDate: targetDate.toISOString(),
+          deliveryDate: targetDate.toISOString(), // Also update the main delivery date
+          deliveryDay: format(targetDate, "EEEE").toLowerCase(), // Update legacy field
         }
       }
       return t
     })
 
-    // Update the transports state
     onTransportsChange(updatedTransports)
   }
 
@@ -207,21 +278,27 @@ export function TransportKanbanBoard({
         onDragEnd={handleDragEnd}
       >
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {availableDays.map((day) => {
-            const { regularTransports, addonTransports } = getTransportsForDay(day)
-            const dayDate = getDayDate(day)
+          {getWeekDates().map((date) => {
+            const dayName = format(date, "EEEE").toLowerCase()
+            const dateTransports = getTransportsByDate(date)
+            const capacityLimits = capacitySettings[dayName] || { weight: 1000, volume: 10 }
+            const capacityUsage = calculateCapacityUsageForDate(date)
+
+            // Determine which transports are over capacity
+            const { regularTransports, addonTransports } = getTransportsForDate(date, capacityLimits)
 
             return (
               <DroppableColumn
-                key={day}
-                day={day}
-                date={dayDate}
+                key={format(date, "yyyy-MM-dd")}
+                day={dayName}
+                date={date}
                 transports={regularTransports}
                 addonTransports={addonTransports}
-                capacityLimit={capacityPerDay[day] || 0}
-                isAtCapacity={isDayAtCapacity(day)}
+                capacityLimits={capacityLimits}
+                capacityUsage={capacityUsage}
+                isAtCapacity={isDayAtCapacity(date)}
                 onTransportClick={handleTransportClick}
-                onEmptySlotClick={onEmptySlotClick}
+                onEmptySlotClick={(day, isAddon) => onEmptySlotClick?.(format(date, "yyyy-MM-dd"), isAddon)}
               />
             )
           })}
@@ -239,7 +316,7 @@ export function TransportKanbanBoard({
         open={detailDialogOpen}
         onOpenChange={setDetailDialogOpen}
         onUpdate={handleTransportUpdate}
-        capacityPerDay={capacityPerDay}
+        capacitySettings={capacitySettings}
         transports={transports}
       />
     </div>

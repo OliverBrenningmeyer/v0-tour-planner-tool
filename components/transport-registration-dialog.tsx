@@ -1,15 +1,16 @@
 "use client"
-
-import { Dialog, DialogContent } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { TransportRegistrationForm } from "./transport-registration-form"
-import type { Transport } from "@/lib/types"
+import type { Transport, CapacityLimits } from "@/lib/types"
 
 interface TransportRegistrationDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onAddTransport: (transport: Transport) => void
+  onAddTransport: (transport: Omit<Transport, "id">) => void
   transports: Transport[]
-  capacityPerDay: Record<string, number>
+  capacityPerDay: {
+    [key: string]: CapacityLimits
+  }
   initialDay?: string | null
   isAddonSlot?: boolean
   availableDays?: string[]
@@ -24,17 +25,22 @@ export function TransportRegistrationDialog({
   capacityPerDay,
   initialDay,
   isAddonSlot,
-  availableDays = ["monday", "wednesday", "friday"],
-  timeWindows = ["Morning", "Afternoon"],
+  availableDays,
+  timeWindows,
 }: TransportRegistrationDialogProps) {
-  const handleAddTransport = (transport: Transport) => {
+  const handleAddTransport = (transport: Omit<Transport, "id">) => {
     onAddTransport(transport)
-    onOpenChange(false) // Close the dialog after adding
+    onOpenChange(false)
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto p-0">
+      <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Register New Transport</DialogTitle>
+          <DialogDescription>Schedule a new transport for delivery</DialogDescription>
+        </DialogHeader>
+
         <TransportRegistrationForm
           onAddTransport={handleAddTransport}
           transports={transports}

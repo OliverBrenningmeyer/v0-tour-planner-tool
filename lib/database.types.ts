@@ -14,9 +14,9 @@ export interface Database {
           size: string
           ordererbranch: string
           orderername: string
-          latestdeliveryday: string
+          latestdeliverydate: string // Changed from latestdeliveryday
           latestdeliverytimewindow: string
-          idealdeliveryday: string
+          idealdeliverydate: string // Changed from idealdeliveryday
           idealdeliverytimewindow: string
           deliverydate: string | null
           customername: string
@@ -25,6 +25,7 @@ export interface Database {
           loaddescription: string
           referencenumber: string
           weight: string
+          volume: string
           unloadingoptions: string[]
           documenturl: string | null
           documentname: string | null
@@ -44,9 +45,9 @@ export interface Database {
           size: string
           ordererbranch: string
           orderername: string
-          latestdeliveryday: string
+          latestdeliverydate: string // Changed from latestdeliveryday
           latestdeliverytimewindow: string
-          idealdeliveryday: string
+          idealdeliverydate: string // Changed from idealdeliveryday
           idealdeliverytimewindow: string
           deliverydate?: string | null
           customername: string
@@ -55,6 +56,7 @@ export interface Database {
           loaddescription: string
           referencenumber: string
           weight: string
+          volume: string
           unloadingoptions: string[]
           documenturl?: string | null
           documentname?: string | null
@@ -74,9 +76,9 @@ export interface Database {
           size?: string
           ordererbranch?: string
           orderername?: string
-          latestdeliveryday?: string
+          latestdeliverydate?: string // Changed from latestdeliveryday
           latestdeliverytimewindow?: string
-          idealdeliveryday?: string
+          idealdeliverydate?: string // Changed from idealdeliveryday
           idealdeliverytimewindow?: string
           deliverydate?: string | null
           customername?: string
@@ -85,6 +87,7 @@ export interface Database {
           loaddescription?: string
           referencenumber?: string
           weight?: string
+          volume?: string
           unloadingoptions?: string[]
           documenturl?: string | null
           documentname?: string | null

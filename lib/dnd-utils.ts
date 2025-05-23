@@ -49,11 +49,32 @@ export function reorderTransports(
   return [...otherTransports, ...dayTransports]
 }
 
-export function getTransportsByDay(transports: Transport[], day: ColumnId): Transport[] {
-  return transports.filter((t) => t.deliveryDay === day).sort((a, b) => Number(a.id) - Number(b.id))
+export function getTransportsByDay(transports: Transport[], day?: ColumnId): Record<string, Transport[]> | Transport[] {
+  if (day) {
+    return transports
+      .filter((t) => t.deliveryDay === day || t.idealDeliveryDay === day)
+      .sort((a, b) => Number(a.id) - Number(b.id))
+  }
+
+  // Return grouped by day
+  const grouped: Record<string, Transport[]> = {}
+  transports.forEach((transport) => {
+    const deliveryDay = transport.idealDeliveryDay || transport.deliveryDay
+    if (!grouped[deliveryDay]) {
+      grouped[deliveryDay] = []
+    }
+    grouped[deliveryDay].push(transport)
+  })
+
+  return grouped
 }
 
 export function getTransportIndexInDay(transports: Transport[], id: string, day: ColumnId): number {
-  const dayTransports = getTransportsByDay(transports, day)
+  const dayTransports = getTransportsByDay(transports, day) as Transport[]
   return dayTransports.findIndex((t) => t.id === id)
+}
+
+export function findContainer(transportId: string, transports: Transport[]): string | null {
+  const transport = transports.find((t) => t.id === transportId)
+  return transport ? transport.idealDeliveryDay || transport.deliveryDay : null
 }

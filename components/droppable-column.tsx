@@ -2,9 +2,9 @@
 
 import { useDroppable } from "@dnd-kit/core"
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable"
-import { Badge } from "@/components/ui/badge"
 import { DraggableTransportCard } from "./draggable-transport-card"
 import { EmptySlot } from "./empty-slot"
+import { CapacityProgressBar } from "./capacity-progress-bar"
 import type { DroppableColumnProps } from "@/lib/types"
 import { format } from "date-fns"
 
@@ -13,7 +13,8 @@ export function DroppableColumn({
   date,
   transports,
   addonTransports,
-  capacityLimit,
+  capacityLimits,
+  capacityUsage,
   isAtCapacity,
   onTransportClick,
   onEmptySlotClick,
@@ -25,12 +26,8 @@ export function DroppableColumn({
   const formattedDay = day.charAt(0).toUpperCase() + day.slice(1)
   const transportIds = [...transports, ...addonTransports].map((t) => t.id)
 
-  // Calculate number of empty slots to display in main section
-  const emptySlotCount = Math.max(0, capacityLimit - transports.length)
-  const emptySlots = Array.from({ length: emptySlotCount }, (_, i) => i)
-
-  // Always show one empty slot in addon section if there are any addon transports
-  const showAddonEmptySlot = addonTransports.length > 0 || transports.length >= capacityLimit
+  // Always show one empty slot for adding transports
+  const showAddonEmptySlot = addonTransports.length > 0 || isAtCapacity
 
   // Format the date - ensure we have a valid date
   const formattedDate = date && !isNaN(date.getTime()) ? format(date, "EEE, MMM d, yyyy") : ""
@@ -54,14 +51,27 @@ export function DroppableColumn({
   return (
     <div className="flex flex-col h-full">
       <div className={`p-4 rounded-t-lg ${getColumnHeaderClass()}`}>
-        <div className="flex justify-between items-center">
+        <div className="flex justify-between items-center mb-3">
           <div>
             <h3 className="font-semibold text-lg">{formattedDay}</h3>
             {formattedDate && <p className="text-sm text-gray-600">{formattedDate}</p>}
           </div>
-          <Badge variant={isAtCapacity ? "destructive" : "outline"}>
-            {transports.length}/{capacityLimit}
-          </Badge>
+        </div>
+
+        {/* Capacity progress bars - only showing weight and volume */}
+        <div className="space-y-2">
+          <CapacityProgressBar
+            current={Number(capacityUsage.weight) || 0}
+            max={Number(capacityLimits.weight) || 1000}
+            label="Weight"
+            unit=" kg"
+          />
+          <CapacityProgressBar
+            current={Number(capacityUsage.volume) || 0}
+            max={Number(capacityLimits.volume) || 10}
+            label="Volume"
+            unit=" m³"
+          />
         </div>
       </div>
       <div
@@ -88,20 +98,18 @@ export function DroppableColumn({
                   />
                 ))}
 
-                {/* Empty slots in main section */}
-                {emptySlots.map((_, index) => (
-                  <EmptySlot
-                    key={`empty-${day}-${index}`}
-                    day={day.toLowerCase()}
-                    onClick={() => (onEmptySlotClick ? onEmptySlotClick(day.toLowerCase(), false) : undefined)}
-                  />
-                ))}
+                {/* Always show one empty slot for adding transports */}
+                <EmptySlot
+                  key={`empty-${day}`}
+                  day={day.toLowerCase()}
+                  onClick={() => (onEmptySlotClick ? onEmptySlotClick(day.toLowerCase(), false) : undefined)}
+                />
               </div>
 
-              {/* Addon section - only show if there are addon transports or if main section is at capacity */}
-              {(addonTransports.length > 0 || transports.length >= capacityLimit) && (
+              {/* Addon section - only show if there are addon transports or if any capacity is reached */}
+              {showAddonEmptySlot && (
                 <div className="space-y-3 border-t pt-4 border-dashed border-gray-300">
-                  <h4 className="text-sm font-medium text-gray-500">Additional Slots</h4>
+                  <h4 className="text-sm font-medium text-gray-500">Additional Slots (Over Capacity)</h4>
                   {addonTransports.map((transport, index) => (
                     <DraggableTransportCard
                       key={transport.id}
@@ -113,14 +121,12 @@ export function DroppableColumn({
                   ))}
 
                   {/* Always show one empty slot in addon section */}
-                  {showAddonEmptySlot && (
-                    <EmptySlot
-                      key={`addon-empty-${day}`}
-                      day={day.toLowerCase()}
-                      isAddon={true}
-                      onClick={() => (onEmptySlotClick ? onEmptySlotClick(day.toLowerCase(), true) : undefined)}
-                    />
-                  )}
+                  <EmptySlot
+                    key={`addon-empty-${day}`}
+                    day={day.toLowerCase()}
+                    isAddon={true}
+                    onClick={() => (onEmptySlotClick ? onEmptySlotClick(day.toLowerCase(), true) : undefined)}
+                  />
                 </div>
               )}
             </div>

@@ -19,7 +19,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { useToast } from "@/hooks/use-toast"
-import type { AppConfig, CapacitySettings } from "@/lib/types"
+import type { AppConfig, CapacityLimits } from "@/lib/types"
 import { fetchConfigurations, updateAllConfigurations } from "@/lib/config-service"
 
 interface SettingsDialogProps {
@@ -34,7 +34,7 @@ export function SettingsDialog({ onConfigUpdate }: SettingsDialogProps) {
   const [activeTab, setActiveTab] = useState("capacity")
 
   // Configuration state
-  const [capacitySettings, setCapacitySettings] = useState<CapacitySettings>({})
+  const [capacitySettings, setCapacitySettings] = useState<{ [key: string]: CapacityLimits }>({})
   const [availableDays, setAvailableDays] = useState<string[]>([])
   const [timeWindows, setTimeWindows] = useState<string[]>([])
 
@@ -74,8 +74,18 @@ export function SettingsDialog({ onConfigUpdate }: SettingsDialogProps) {
 
       // Validate capacity settings
       for (const day of availableDays) {
-        if (!capacitySettings[day] || capacitySettings[day] < 1) {
-          setError(`Capacity for ${day} must be at least 1`)
+        if (!capacitySettings[day]) {
+          setError(`Missing capacity settings for ${day}`)
+          setSaving(false)
+          return
+        }
+        if (capacitySettings[day].weight < 1) {
+          setError(`Weight capacity for ${day} must be at least 1`)
+          setSaving(false)
+          return
+        }
+        if (capacitySettings[day].volume < 1) {
+          setError(`Volume capacity for ${day} must be at least 1`)
           setSaving(false)
           return
         }
@@ -119,11 +129,14 @@ export function SettingsDialog({ onConfigUpdate }: SettingsDialogProps) {
     }
   }
 
-  const handleCapacityChange = (day: string, value: string) => {
+  const handleCapacityChange = (day: string, field: keyof CapacityLimits, value: string) => {
     const numValue = Number.parseInt(value, 10) || 0
     setCapacitySettings({
       ...capacitySettings,
-      [day]: numValue,
+      [day]: {
+        ...capacitySettings[day],
+        [field]: numValue,
+      },
     })
   }
 
@@ -144,7 +157,10 @@ export function SettingsDialog({ onConfigUpdate }: SettingsDialogProps) {
     setAvailableDays([...availableDays, formattedDay])
     setCapacitySettings({
       ...capacitySettings,
-      [formattedDay]: 3, // Default capacity
+      [formattedDay]: {
+        weight: 1000, // Default weight capacity (kg)
+        volume: 10, // Default volume capacity (m³)
+      },
     })
     setNewDay("")
   }
@@ -218,27 +234,41 @@ export function SettingsDialog({ onConfigUpdate }: SettingsDialogProps) {
               <Card>
                 <CardHeader>
                   <CardTitle>Capacity Per Day</CardTitle>
-                  <CardDescription>Set the maximum number of transports allowed for each delivery day.</CardDescription>
+                  <CardDescription>Set the maximum capacity limits for each delivery day.</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4">
+                <CardContent className="space-y-6">
                   {availableDays.length === 0 ? (
                     <div className="text-center py-4 text-muted-foreground">
                       No available days configured. Please add days in the Available Days tab.
                     </div>
                   ) : (
                     availableDays.map((day) => (
-                      <div key={day} className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor={`capacity-${day}`} className="text-right capitalize">
-                          {day}
-                        </Label>
-                        <Input
-                          id={`capacity-${day}`}
-                          type="number"
-                          min="1"
-                          value={capacitySettings[day] || ""}
-                          onChange={(e) => handleCapacityChange(day, e.target.value)}
-                          className="col-span-3"
-                        />
+                      <div key={day} className="space-y-4 border p-4 rounded-md">
+                        <h3 className="font-medium capitalize">{day}</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor={`capacity-weight-${day}`}>Max Weight</Label>
+                            <Input
+                              id={`capacity-weight-${day}`}
+                              type="number"
+                              min="1"
+                              value={capacitySettings[day]?.weight || ""}
+                              onChange={(e) => handleCapacityChange(day, "weight", e.target.value)}
+                            />
+                            <p className="text-xs text-muted-foreground">Weight in kg</p>
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor={`capacity-volume-${day}`}>Max Volume</Label>
+                            <Input
+                              id={`capacity-volume-${day}`}
+                              type="number"
+                              min="1"
+                              value={capacitySettings[day]?.volume || ""}
+                              onChange={(e) => handleCapacityChange(day, "volume", e.target.value)}
+                            />
+                            <p className="text-xs text-muted-foreground">Volume in m³</p>
+                          </div>
+                        </div>
                       </div>
                     ))
                   )}
@@ -289,7 +319,7 @@ export function SettingsDialog({ onConfigUpdate }: SettingsDialogProps) {
                     <p>Tips:</p>
                     <ul className="list-disc list-inside ml-2">
                       <li>Day names should be lowercase (e.g., monday, tuesday)</li>
-                      <li>Each day added will get a default capacity of 3</li>
+                      <li>Each day added will get default capacity settings</li>
                       <li>You can adjust capacities in the Capacity Settings tab</li>
                     </ul>
                   </div>

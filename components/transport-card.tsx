@@ -1,6 +1,6 @@
 "use client"
 
-import { Package, Truck, Box, GripVertical, Calendar } from "lucide-react"
+import { Package, Truck, Box, GripVertical, Calendar, Weight, CuboidIcon as Cube } from "lucide-react"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Crane } from "./icons/crane"
@@ -63,7 +63,7 @@ export function TransportCard({ transport, isOverCapacity = false, isDragging = 
     <Card
       className={`overflow-hidden border-l-4 ${
         isOverCapacity ? "border-red-500 bg-red-50" : "border-l-blue-500"
-      } hover:shadow-md transition-shadow ${isDragging ? "shadow-lg" : ""} ${
+      } hover:shadow-md transition-shadow ${isDragging ? "shadow-lg opacity-50" : ""} ${
         onClick ? "cursor-pointer hover:bg-gray-50" : ""
       }`}
       onClick={(e) => {
@@ -90,6 +90,16 @@ export function TransportCard({ transport, isOverCapacity = false, isDragging = 
             {transport.loadDescription || transport.description}
           </p>
           {transport.referenceNumber && <p className="text-xs text-gray-500">Ref: {transport.referenceNumber}</p>}
+          <div className="flex items-center gap-3 text-xs text-gray-500">
+            <span className="flex items-center gap-1">
+              <Weight className="h-3 w-3" />
+              {Number(transport.weight) || 0} kg
+            </span>
+            <span className="flex items-center gap-1">
+              <Cube className="h-3 w-3" />
+              {Number(transport.volume) || 0} m³
+            </span>
+          </div>
         </div>
       </CardContent>
       <CardFooter className="p-4 pt-0 flex justify-between items-center">
@@ -97,11 +107,6 @@ export function TransportCard({ transport, isOverCapacity = false, isDragging = 
           <Badge variant="secondary" className="text-xs">
             {transport.latestDeliveryTimeWindow}
           </Badge>
-          {transport.weight && (
-            <Badge variant="outline" className="text-xs">
-              {transport.weight}
-            </Badge>
-          )}
         </div>
         <div className="flex items-center gap-1 text-xs text-gray-500">
           <Calendar className="h-3 w-3" />

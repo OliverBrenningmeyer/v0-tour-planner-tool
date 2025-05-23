@@ -4,10 +4,10 @@ export interface Transport {
   ordererBranch: string
   ordererName: string
 
-  // Delivery date details
-  latestDeliveryDay: string
+  // Delivery date details - these should be actual dates, not weekdays
+  latestDeliveryDate: string // ISO date string
   latestDeliveryTimeWindow: "Morning" | "Afternoon"
-  idealDeliveryDay: string
+  idealDeliveryDate: string // ISO date string
   idealDeliveryTimeWindow: "Morning" | "Afternoon"
   deliveryDate?: string // ISO string of the actual delivery date
 
@@ -19,7 +19,8 @@ export interface Transport {
   // Load details
   loadDescription: string
   referenceNumber: string
-  weight: string
+  weight: number
+  volume: number
   size: "S" | "M" | "L" | string
 
   // Unloading options
@@ -36,10 +37,10 @@ export interface Transport {
   lastModifiedBy: string
   creationChannel: string
 
-  // Legacy fields (keeping for compatibility)
+  // Legacy fields (keeping for compatibility) - these will be derived from dates
   name: string
   description: string
-  deliveryDay: string
+  deliveryDay: string // derived from idealDeliveryDate
   vehicleType: "LKW" | "Kran"
   status: "pending" | "confirmed" | "completed" | "cancelled"
 }
@@ -56,18 +57,29 @@ export interface DroppableColumnProps {
   date?: Date
   transports: Transport[]
   addonTransports: Transport[]
-  capacityLimit: number
+  capacityLimits: CapacityLimits
+  capacityUsage: CapacityUsage
   isAtCapacity: boolean
   onTransportClick?: (transport: Transport) => void
   onEmptySlotClick?: (day: string, isAddonSlot?: boolean) => void
 }
 
-export interface CapacitySettings {
-  [key: string]: number
+// Updated interface for capacity limits - removed count
+export interface CapacityLimits {
+  weight: number
+  volume: number
+}
+
+// Updated interface for capacity usage - removed count
+export interface CapacityUsage {
+  weight: number
+  volume: number
 }
 
 export interface AppConfig {
-  capacitySettings: CapacitySettings
+  capacitySettings: {
+    [key: string]: CapacityLimits
+  }
   availableDays: string[]
   timeWindows: string[]
 }

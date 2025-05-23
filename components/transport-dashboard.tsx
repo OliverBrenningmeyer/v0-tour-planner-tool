@@ -9,7 +9,7 @@ import { HistoryControls } from "./history-controls"
 import { useHistory } from "@/hooks/use-history"
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts"
 import { useToast } from "@/hooks/use-toast"
-import { startOfWeek, endOfWeek, parseISO, isWithinInterval } from "date-fns"
+import { startOfWeek, endOfWeek, parseISO, isWithinInterval, addDays, format } from "date-fns"
 import { fetchTransports, addTransport, updateTransport } from "@/lib/transport-service"
 import { fetchConfigurations } from "@/lib/config-service"
 import { Loader2, Plus } from "lucide-react"
@@ -17,11 +17,232 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { TransportRegistrationDialog } from "./transport-registration-dialog"
 
+const DEFAULT_CONFIG: AppConfig = {
+  capacitySettings: {
+    monday: {
+      weight: 1000,
+      volume: 10,
+    },
+    wednesday: {
+      weight: 800,
+      volume: 8,
+    },
+    friday: {
+      weight: 1000,
+      volume: 10,
+    },
+  },
+  availableDays: ["monday", "wednesday", "friday"],
+  timeWindows: ["Morning", "Afternoon"],
+}
+
+// Generate sample transport data
+const generateSampleTransportData = (selectedWeek: Date): Omit<Transport, "id">[] => {
+  const weekStart = startOfWeek(selectedWeek, { weekStartsOn: 1 })
+  const sampleTransports: Omit<Transport, "id">[] = []
+
+  const availableDays = ["monday", "wednesday", "friday"]
+  const timeWindows = ["Morning", "Afternoon"]
+
+  const germanCustomers = [
+    "Müller Bau GmbH",
+    "Schmidt Renovierung",
+    "Weber Handwerk",
+    "Fischer Bauunternehmen",
+    "Becker Sanierung",
+    "Hoffmann Bau",
+    "Schulz Renovierungen",
+    "Koch Bauservice",
+    "Richter Handwerk",
+    "Klein Baustoffe",
+  ]
+
+  const germanMaterials = [
+    {
+      description: "Zement Portland 25kg Säcke, Kies 0-16mm, Sand gewaschen",
+      weight: 850,
+      volume: 2.5,
+      size: "L",
+      reference: "BAU-2024-001",
+    },
+    {
+      description: "Sanitär-Komplettset: WC, Waschbecken, Armaturen, Rohrleitungen",
+      weight: 320,
+      volume: 1.8,
+      size: "M",
+      reference: "SAN-2024-015",
+    },
+    {
+      description: "Elektrische Leitungen NYM-J 3x1,5mm², Verteilerdosen, Schalter",
+      weight: 180,
+      volume: 0.8,
+      size: "S",
+      reference: "ELE-2024-089",
+    },
+    {
+      description: "Gartenbaustoffe: Pflastersteine, Randsteine, Splitt, Erde",
+      weight: 1200,
+      volume: 4.2,
+      size: "L",
+      reference: "GAR-2024-034",
+    },
+    {
+      description: "Holzbalken 10x10cm, OSB-Platten, Dachlatten, Schrauben",
+      weight: 680,
+      volume: 3.1,
+      size: "L",
+      reference: "HOL-2024-067",
+    },
+    {
+      description: "Fliesen 60x60cm Feinsteinzeug, Fliesenkleber, Fugenmasse",
+      weight: 420,
+      volume: 1.2,
+      size: "M",
+      reference: "FLI-2024-023",
+    },
+    {
+      description: "Farben und Lacke: Wandfarbe weiß 20L, Grundierung, Pinsel",
+      weight: 95,
+      volume: 0.4,
+      size: "S",
+      reference: "FAR-2024-156",
+    },
+    {
+      description: "Dämmstoffe: Mineralwolle, Dampfsperre, Klebeband",
+      weight: 240,
+      volume: 8.5,
+      size: "L",
+      reference: "DAM-2024-078",
+    },
+    {
+      description: "Werkzeuge: Bohrmaschine, Sägen, Schraubendreher-Set, Wasserwaage",
+      weight: 45,
+      volume: 0.3,
+      size: "S",
+      reference: "WER-2024-112",
+    },
+    {
+      description: "Türen und Fenster: Innentüren Buche, Türzargen, Beschläge",
+      weight: 380,
+      volume: 2.8,
+      size: "L",
+      reference: "TUE-2024-045",
+    },
+  ]
+
+  const addresses = [
+    "Hauptstraße 15, 10115 Berlin",
+    "Müllerstraße 42, 13353 Berlin",
+    "Kantstraße 88, 10627 Berlin",
+    "Friedrichstraße 123, 10117 Berlin",
+    "Alexanderplatz 7, 10178 Berlin",
+    "Potsdamer Platz 1, 10785 Berlin",
+    "Unter den Linden 25, 10117 Berlin",
+    "Kurfürstendamm 195, 10707 Berlin",
+  ]
+
+  const phones = [
+    "+49 30 12345678",
+    "+49 30 87654321",
+    "+49 30 11223344",
+    "+49 30 55667788",
+    "+49 30 99887766",
+    "+49 30 33445566",
+    "+49 30 77889900",
+    "+49 30 22334455",
+  ]
+
+  availableDays.forEach((day, dayIndex) => {
+    const dayDate = addDays(weekStart, dayIndex * 2) // Monday=0, Wednesday=2, Friday=4
+    const transportsForDay = Math.floor(Math.random() * 5) + 1 // 1-5 transports per day
+
+    for (let i = 0; i < transportsForDay; i++) {
+      const material = germanMaterials[Math.floor(Math.random() * germanMaterials.length)]
+      const customer = germanCustomers[Math.floor(Math.random() * germanCustomers.length)]
+      const address = addresses[Math.floor(Math.random() * addresses.length)]
+      const phone = phones[Math.floor(Math.random() * phones.length)]
+      const timeWindow = timeWindows[Math.floor(Math.random() * timeWindows.length)] as "Morning" | "Afternoon"
+
+      const now = new Date().toISOString()
+      const deliveryDate = dayDate.toISOString()
+
+      const transport: Omit<Transport, "id"> = {
+        // Orderer information
+        ordererBranch: "Berlin Zentrale",
+        ordererName: "Max Mustermann",
+
+        // Delivery date details
+        deliveryDate: deliveryDate,
+        latestDeliveryDate: deliveryDate,
+        latestDeliveryTimeWindow: timeWindow,
+        idealDeliveryDate: deliveryDate,
+        idealDeliveryTimeWindow: timeWindow,
+
+        // Customer information
+        customerName: customer,
+        customerAddress: address,
+        customerPhone: phone,
+
+        // Load details
+        loadDescription: material.description,
+        referenceNumber: material.reference,
+        weight: material.weight,
+        volume: material.volume,
+        size: material.size,
+
+        // Unloading options
+        unloadingOptions: Math.random() > 0.7 ? ["Boardsteinkarte", "with crane"] : ["Boardsteinkarte"],
+
+        // Document
+        documentUrl: undefined,
+        documentName: undefined,
+
+        // Hidden fields
+        createdDate: now,
+        createdBy: "System",
+        lastModifiedDate: now,
+        lastModifiedBy: "System",
+        creationChannel: "Sample Data",
+
+        // Legacy fields
+        name: customer,
+        description: material.description,
+        deliveryDay: day,
+        status: "pending",
+        vehicleType: material.size === "L" || Math.random() > 0.8 ? "Kran" : "LKW",
+      }
+
+      sampleTransports.push(transport)
+    }
+  })
+
+  return sampleTransports
+}
+
+// Function to seed the database with sample data
+const seedDatabaseWithSampleData = async (selectedWeek: Date): Promise<Transport[]> => {
+  const sampleData = generateSampleTransportData(selectedWeek)
+  const addedTransports: Transport[] = []
+
+  // Add each sample transport to the database
+  for (const transport of sampleData) {
+    try {
+      const addedTransport = await addTransport(transport)
+      addedTransports.push(addedTransport)
+    } catch (error) {
+      console.error("Failed to add sample transport:", error)
+    }
+  }
+
+  return addedTransports
+}
+
 export default function TransportDashboard() {
   // State for transports
   const [transports, setTransports] = useState<Transport[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [isSeeding, setIsSeeding] = useState(false)
 
   // Use history hook for undo/redo
   const {
@@ -39,15 +260,7 @@ export default function TransportDashboard() {
   const [selectedWeek, setSelectedWeek] = useState<Date>(new Date())
 
   // Configuration state
-  const [config, setConfig] = useState<AppConfig>({
-    capacitySettings: {
-      monday: 3,
-      wednesday: 2,
-      friday: 3,
-    },
-    availableDays: ["monday", "wednesday", "friday"],
-    timeWindows: ["Morning", "Afternoon"],
-  })
+  const [config, setConfig] = useState<AppConfig>(DEFAULT_CONFIG)
 
   // Registration dialog state
   const [registrationDialogOpen, setRegistrationDialogOpen] = useState(false)
@@ -62,23 +275,60 @@ export default function TransportDashboard() {
     const initialize = async () => {
       try {
         setLoading(true)
+        setError(null)
 
         // Fetch configurations first
         const configData = await fetchConfigurations()
         setConfig(configData)
 
-        // Then fetch transports
-        const transportData = await fetchTransports()
-        setTransports(transportData)
-        updateHistoryState(transportData)
+        // Fetch transports from Supabase
+        const fetchedTransports = await fetchTransports()
 
-        setError(null)
+        // Check if we have any transports for the current week
+        const weekStart = startOfWeek(selectedWeek, { weekStartsOn: 1 })
+        const weekEnd = endOfWeek(selectedWeek, { weekStartsOn: 1 })
+
+        const transportsForWeek = fetchedTransports.filter((transport) => {
+          if (!transport.deliveryDate) return false
+          try {
+            const deliveryDate = parseISO(transport.deliveryDate)
+            return isWithinInterval(deliveryDate, { start: weekStart, end: weekEnd })
+          } catch {
+            return false
+          }
+        })
+
+        // If no transports for the current week, seed with sample data
+        if (transportsForWeek.length === 0) {
+          setIsSeeding(true)
+          toast({
+            title: "Generating sample data",
+            description: "Creating sample transports for this week...",
+            duration: 3000,
+          })
+
+          const sampleTransports = await seedDatabaseWithSampleData(selectedWeek)
+          setTransports([...fetchedTransports, ...sampleTransports])
+          updateHistoryState([...fetchedTransports, ...sampleTransports])
+
+          toast({
+            title: "Sample data created",
+            description: `Created ${sampleTransports.length} sample transports for this week`,
+            duration: 3000,
+          })
+          setIsSeeding(false)
+        } else {
+          // Use existing data
+          setTransports(fetchedTransports)
+          updateHistoryState(fetchedTransports)
+        }
       } catch (err) {
         console.error("Failed to initialize:", err)
-        setError("Failed to load data. Please try again.")
+        const errorMessage = err instanceof Error ? err.message : "Failed to load data. Please try again."
+        setError(errorMessage)
         toast({
           title: "Error",
-          description: "Failed to load data. Please try again.",
+          description: errorMessage,
           variant: "destructive",
         })
       } finally {
@@ -87,7 +337,7 @@ export default function TransportDashboard() {
     }
 
     initialize()
-  }, [toast, updateHistoryState])
+  }, [toast, updateHistoryState, selectedWeek])
 
   // Register keyboard shortcuts
   useKeyboardShortcuts({
@@ -164,6 +414,7 @@ export default function TransportDashboard() {
     })
   }
 
+  // Update the handleAddTransport function to ensure weight and volume are numbers
   const handleAddTransport = async (newTransport: Omit<Transport, "id">) => {
     try {
       // Add metadata
@@ -171,10 +422,22 @@ export default function TransportDashboard() {
       const currentUser = "Current User" // In a real app, this would come from authentication
 
       // Make sure idealDeliveryDay and deliveryDay are in sync
+      // Safely handle date parsing with fallbacks
+      let deliveryDay = "monday" // Default day
+      try {
+        if (newTransport.idealDeliveryDate) {
+          deliveryDay = format(parseISO(newTransport.idealDeliveryDate), "EEEE").toLowerCase()
+        }
+      } catch (err) {
+        console.warn("Could not parse idealDeliveryDate, using default day:", err)
+      }
+
       const transportWithMetadata = {
         ...newTransport,
         id: "", // Will be set by Supabase
-        deliveryDay: newTransport.idealDeliveryDay, // Set deliveryDay to match idealDeliveryDay
+        deliveryDay: deliveryDay, // Set deliveryDay to match idealDeliveryDay
+        weight: Number(newTransport.weight) || 0, // Ensure weight is a number
+        volume: Number(newTransport.volume) || 0, // Ensure volume is a number
         createdDate: now,
         createdBy: currentUser,
         lastModifiedDate: now,
@@ -193,60 +456,80 @@ export default function TransportDashboard() {
       // Show success toast
       toast({
         title: "Transport added",
-        description: `${newTransport.customerName} has been scheduled for ${newTransport.idealDeliveryDay}`,
+        description: `${newTransport.customerName} has been scheduled for delivery`,
         duration: 2000,
       })
     } catch (err) {
       console.error("Failed to add transport:", err)
+      const errorMessage = err instanceof Error ? err.message : "Failed to add transport. Please try again."
       toast({
         title: "Error",
-        description: "Failed to add transport. Please try again.",
+        description: errorMessage,
         variant: "destructive",
       })
     }
   }
 
+  // Update the handleTransportsChange function to ensure weight and volume are persisted
   const handleTransportsChange = async (updatedTransports: Transport[]) => {
     try {
       // Find the transport that changed
       const changedTransport = updatedTransports.find((newT) => {
         const oldT = transports.find((t) => t.id === newT.id)
-        return oldT && oldT.idealDeliveryDay !== newT.idealDeliveryDay
+        return (
+          oldT &&
+          (oldT.idealDeliveryDay !== newT.idealDeliveryDay ||
+            oldT.weight !== newT.weight ||
+            oldT.volume !== newT.volume)
+        )
       })
 
       if (changedTransport) {
+        // Ensure weight and volume are numbers
+        const transportToUpdate = {
+          ...changedTransport,
+          weight: Number(changedTransport.weight) || 0,
+          volume: Number(changedTransport.volume) || 0,
+          lastModifiedDate: new Date().toISOString(),
+          lastModifiedBy: "Current User",
+        }
+
         // Update in Supabase
-        await updateTransport(changedTransport)
+        await updateTransport(transportToUpdate)
 
         // Update local state
         setTransports(updatedTransports)
         updateHistoryState(updatedTransports)
 
-        // Show toast notification about the move
+        // Show toast notification about the update
         toast({
-          title: "Transport moved",
-          description: `${changedTransport.customerName || changedTransport.name} moved to ${changedTransport.idealDeliveryDay}`,
+          title: "Transport updated",
+          description: `${changedTransport.customerName || changedTransport.name} has been updated`,
           duration: 2000,
         })
       }
     } catch (err) {
       console.error("Failed to update transport:", err)
+      const errorMessage = err instanceof Error ? err.message : "Failed to update transport. Please try again."
       toast({
         title: "Error",
-        description: "Failed to update transport. Please try again.",
+        description: errorMessage,
         variant: "destructive",
       })
+
+      // Revert the local state change on error
+      setTransports([...transports])
     }
   }
 
   // Get transports for the selected week
   const filteredTransports = getTransportsForSelectedWeek()
 
-  if (loading) {
+  if (loading || isSeeding) {
     return (
       <div className="flex items-center justify-center h-screen">
         <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
-        <span className="ml-2 text-lg">Loading data...</span>
+        <span className="ml-2 text-lg">{isSeeding ? "Generating sample data..." : "Loading data..."}</span>
       </div>
     )
   }
@@ -309,7 +592,7 @@ export default function TransportDashboard() {
 
         <TransportKanbanBoard
           transports={filteredTransports}
-          capacityPerDay={config.capacitySettings}
+          capacitySettings={config.capacitySettings}
           onTransportsChange={handleTransportsChange}
           onEmptySlotClick={handleEmptySlotClick}
           selectedWeek={selectedWeek}

@@ -10,19 +10,16 @@ export function DraggableTransportCard({ transport, isOverCapacity, index, onCli
     id: transport.id,
     data: {
       transport,
-      index,
     },
   })
 
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.5 : 1,
-    zIndex: isDragging ? 1 : 0,
   }
 
   return (
-    <div ref={setNodeRef} style={style} {...attributes} {...listeners} className="touch-manipulation">
+    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
       <TransportCard transport={transport} isOverCapacity={isOverCapacity} isDragging={isDragging} onClick={onClick} />
     </div>
   )

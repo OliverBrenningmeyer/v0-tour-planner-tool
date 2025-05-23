@@ -1,8 +1,10 @@
 "use client"
 
-import { useState } from "react"
+import type React from "react"
+
+import { useState, useEffect } from "react"
 import { Package, Truck, Box, User, Building, Calendar, FileText, Upload } from "lucide-react"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -13,16 +15,19 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
 import { Crane } from "./icons/crane"
-import { DeliveryDatePicker } from "./delivery-date-picker"
-import type { Transport } from "@/lib/types"
-import { format, parseISO, nextMonday, nextWednesday, nextFriday } from "date-fns"
+import { DatePicker } from "./date-picker"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import type { Transport, CapacityLimits } from "@/lib/types"
+import { format, parseISO } from "date-fns"
 
 interface TransportDetailDialogProps {
   transport: Transport | null
   open: boolean
   onOpenChange: (open: boolean) => void
   onUpdate: (updatedTransport: Transport) => void
-  capacityPerDay: Record<string, number>
+  capacitySettings: {
+    [key: string]: CapacityLimits
+  }
   transports: Transport[]
 }
 
@@ -31,7 +36,7 @@ export function TransportDetailDialog({
   open,
   onOpenChange,
   onUpdate,
-  capacityPerDay,
+  capacitySettings,
   transports,
 }: TransportDetailDialogProps) {
   const [isEditing, setIsEditing] = useState(false)
@@ -41,11 +46,15 @@ export function TransportDetailDialog({
   const [ordererName, setOrdererName] = useState(transport?.ordererName || "")
 
   // Delivery date details
-  const [latestDeliveryDay, setLatestDeliveryDay] = useState(transport?.latestDeliveryDay || "")
+  const [latestDeliveryDate, setLatestDeliveryDate] = useState<Date | undefined>(
+    transport?.deliveryDate ? parseISO(transport.deliveryDate) : undefined,
+  )
   const [latestDeliveryTimeWindow, setLatestDeliveryTimeWindow] = useState<"Morning" | "Afternoon">(
     transport?.latestDeliveryTimeWindow || "Morning",
   )
-  const [idealDeliveryDay, setIdealDeliveryDay] = useState(transport?.idealDeliveryDay || "")
+  const [idealDeliveryDate, setIdealDeliveryDate] = useState<Date | undefined>(
+    transport?.deliveryDate ? parseISO(transport.deliveryDate) : undefined,
+  )
   const [idealDeliveryTimeWindow, setIdealDeliveryTimeWindow] = useState<"Morning" | "Afternoon">(
     transport?.idealDeliveryTimeWindow || "Morning",
   )
@@ -58,8 +67,9 @@ export function TransportDetailDialog({
   // Load details
   const [loadDescription, setLoadDescription] = useState(transport?.loadDescription || "")
   const [referenceNumber, setReferenceNumber] = useState(transport?.referenceNumber || "")
-  const [weight, setWeight] = useState(transport?.weight || "")
+  const [weight, setWeight] = useState<string>(transport?.weight?.toString() || "0")
   const [size, setSize] = useState(transport?.size || "M")
+  const [volume, setVolume] = useState<string>(transport?.volume?.toString() || "0")
 
   // Unloading options
   const [unloadingOptions, setUnloadingOptions] = useState<string[]>(transport?.unloadingOptions || ["Boardsteinkarte"])
@@ -74,60 +84,49 @@ export function TransportDetailDialog({
   const [deliveryDay, setDeliveryDay] = useState<string>(transport?.deliveryDay || "monday")
 
   // Reset form when transport changes
-  if (transport && transport.name !== name && !isEditing) {
-    // Orderer information
-    setOrdererBranch(transport.ordererBranch || "")
-    setOrdererName(transport.ordererName || "")
+  useEffect(() => {
+    if (transport && !isEditing) {
+      // Orderer information
+      setOrdererBranch(transport.ordererBranch || "")
+      setOrdererName(transport.ordererName || "")
 
-    // Delivery date details
-    setLatestDeliveryDay(transport.latestDeliveryDay || "")
-    setLatestDeliveryTimeWindow(transport.latestDeliveryTimeWindow || "Morning")
-    setIdealDeliveryDay(transport.idealDeliveryDay || "")
-    setIdealDeliveryTimeWindow(transport.idealDeliveryTimeWindow || "Morning")
+      // Delivery date details
+      setLatestDeliveryDate(transport.deliveryDate ? parseISO(transport.deliveryDate) : undefined)
+      setLatestDeliveryTimeWindow(transport.latestDeliveryTimeWindow || "Morning")
+      setIdealDeliveryDate(transport.deliveryDate ? parseISO(transport.deliveryDate) : undefined)
+      setIdealDeliveryTimeWindow(transport.idealDeliveryTimeWindow || "Morning")
 
-    // Customer information
-    setCustomerName(transport.customerName || "")
-    setCustomerAddress(transport.customerAddress || "")
-    setCustomerPhone(transport.customerPhone || "")
+      // Customer information
+      setCustomerName(transport.customerName || "")
+      setCustomerAddress(transport.customerAddress || "")
+      setCustomerPhone(transport.customerPhone || "")
 
-    // Load details
-    setLoadDescription(transport.loadDescription || "")
-    setReferenceNumber(transport.referenceNumber || "")
-    setWeight(transport.weight || "")
-    setSize(transport.size || "M")
+      // Load details
+      setLoadDescription(transport.loadDescription || "")
+      setReferenceNumber(transport.referenceNumber || "")
+      setWeight((transport.weight || 0).toString())
+      setSize(transport.size || "M")
+      setVolume((transport.volume || 0).toString())
 
-    // Unloading options
-    setUnloadingOptions(transport.unloadingOptions || ["Boardsteinkarte"])
+      // Unloading options
+      setUnloadingOptions(transport.unloadingOptions || ["Boardsteinkarte"])
 
-    // Legacy fields
-    setName(transport.name)
-    setDescription(transport.description)
-    setVehicleType(transport.vehicleType || "LKW")
-    setStatus(transport.status)
-    setDeliveryDay(transport.deliveryDay)
-  }
+      // Legacy fields
+      setName(transport.name)
+      setDescription(transport.description)
+      setVehicleType(transport.vehicleType || "LKW")
+      setStatus(transport.status)
+      setDeliveryDay(transport.deliveryDay)
+    }
+  }, [transport, isEditing])
 
   if (!transport) return null
 
-  // Get the actual delivery date based on the selected day
-  const getDeliveryDate = (day: string): Date => {
-    const today = new Date()
-
-    switch (day) {
-      case "monday":
-        return nextMonday(today)
-      case "wednesday":
-        return nextWednesday(today)
-      case "friday":
-        return nextFriday(today)
-      default:
-        return today
-    }
-  }
-
   const handleSave = () => {
-    // Get the delivery date based on the selected day
-    const deliveryDate = getDeliveryDate(latestDeliveryDay)
+    if (!idealDeliveryDate || !latestDeliveryDate) {
+      alert("Please select both delivery dates")
+      return
+    }
 
     const updatedTransport: Transport = {
       ...transport,
@@ -136,11 +135,9 @@ export function TransportDetailDialog({
       ordererName,
 
       // Delivery date details
-      latestDeliveryDay,
+      deliveryDate: idealDeliveryDate.toISOString(), // Use ideal date as the actual delivery date
       latestDeliveryTimeWindow,
-      idealDeliveryDay,
       idealDeliveryTimeWindow,
-      deliveryDate: deliveryDate.toISOString(), // Update the actual date
 
       // Customer information
       customerName,
@@ -150,8 +147,9 @@ export function TransportDetailDialog({
       // Load details
       loadDescription,
       referenceNumber,
-      weight,
+      weight: Number(weight) || 0, // Ensure weight is a number
       size,
+      volume: Number(volume) || 0, // Ensure volume is a number
 
       // Unloading options
       unloadingOptions,
@@ -165,7 +163,7 @@ export function TransportDetailDialog({
       description: loadDescription, // Update description to match load description
       vehicleType,
       status,
-      deliveryDay: latestDeliveryDay, // Update the main delivery day to match latest
+      deliveryDay: format(idealDeliveryDate, "EEEE").toLowerCase(), // Update the day of week based on the date
     }
     onUpdate(updatedTransport)
     setIsEditing(false)
@@ -179,9 +177,9 @@ export function TransportDetailDialog({
       setOrdererName(transport.ordererName || "")
 
       // Delivery date details
-      setLatestDeliveryDay(transport.latestDeliveryDay || "")
+      setLatestDeliveryDate(transport.deliveryDate ? parseISO(transport.deliveryDate) : undefined)
       setLatestDeliveryTimeWindow(transport.latestDeliveryTimeWindow || "Morning")
-      setIdealDeliveryDay(transport.idealDeliveryDay || "")
+      setIdealDeliveryDate(transport.deliveryDate ? parseISO(transport.deliveryDate) : undefined)
       setIdealDeliveryTimeWindow(transport.idealDeliveryTimeWindow || "Morning")
 
       // Customer information
@@ -192,8 +190,9 @@ export function TransportDetailDialog({
       // Load details
       setLoadDescription(transport.loadDescription || "")
       setReferenceNumber(transport.referenceNumber || "")
-      setWeight(transport.weight || "")
+      setWeight((transport.weight || 0).toString())
       setSize(transport.size || "M")
+      setVolume((transport.volume || 0).toString())
 
       // Unloading options
       setUnloadingOptions(transport.unloadingOptions || ["Boardsteinkarte"])
@@ -215,13 +214,6 @@ export function TransportDetailDialog({
     } else {
       setUnloadingOptions([...unloadingOptions, option])
     }
-  }
-
-  // Check if the selected day is at capacity
-  const isDayAtCapacity = (day: string) => {
-    if (day === transport.deliveryDay) return false // Don't count the current transport
-    const dayTransports = transports.filter((t) => t.deliveryDay === day && t.id !== transport.id)
-    return dayTransports.length >= (capacityPerDay[day] || 0)
   }
 
   // Get the vehicle type icon
@@ -260,6 +252,14 @@ export function TransportDetailDialog({
     }
   }
 
+  // Handle numeric input changes
+  const handleNumericChange = (setter: React.Dispatch<React.SetStateAction<string>>, value: string) => {
+    // Allow empty string, numbers, and decimal point
+    if (value === "" || /^[0-9]*\.?[0-9]*$/.test(value)) {
+      setter(value)
+    }
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
@@ -287,8 +287,8 @@ export function TransportDetailDialog({
               variant="outline"
               className={cn(
                 "text-sm",
-                vehicleType === "LKW" && "bg-blue-50 text-blue-700 border-blue-200",
-                vehicleType === "Kran" && "bg-amber-50 text-amber-700 border-amber-200",
+                vehicleType === "LKW" ? "bg-blue-50 text-blue-700 border-blue-200" : "",
+                vehicleType === "Kran" ? "bg-amber-50 text-amber-700 border-amber-200" : "",
               )}
             >
               <span className="flex items-center gap-1">
@@ -349,58 +349,59 @@ export function TransportDetailDialog({
                   </h3>
 
                   <div className="space-y-4">
-                    <h4 className="text-sm font-medium">Deliver latest until</h4>
+                    <h4 className="text-sm font-medium">Ideal delivery date</h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label htmlFor="latestDeliveryDay">Day</Label>
-                        <DeliveryDatePicker value={latestDeliveryDay} onChange={setLatestDeliveryDay} label="latest" />
-                        {isDayAtCapacity(latestDeliveryDay) && (
-                          <p className="text-sm text-red-500">Warning: This day is at capacity</p>
-                        )}
+                        <Label htmlFor="idealDeliveryDate">Date</Label>
+                        <DatePicker
+                          date={idealDeliveryDate}
+                          onDateChange={setIdealDeliveryDate}
+                          placeholder="Select ideal delivery date"
+                        />
                       </div>
                       <div className="space-y-2">
                         <Label>Time Window</Label>
-                        <RadioGroup
-                          value={latestDeliveryTimeWindow}
-                          onValueChange={(value) => setLatestDeliveryTimeWindow(value as "Morning" | "Afternoon")}
-                          className="flex space-x-4"
+                        <Select
+                          value={idealDeliveryTimeWindow}
+                          onValueChange={(value) => setIdealDeliveryTimeWindow(value as "Morning" | "Afternoon")}
                         >
-                          <div className="flex items-center space-x-2">
-                            <RadioGroupItem value="Morning" id="detail-latest-morning" />
-                            <Label htmlFor="detail-latest-morning">Morning</Label>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <RadioGroupItem value="Afternoon" id="detail-latest-afternoon" />
-                            <Label htmlFor="detail-latest-afternoon">Afternoon</Label>
-                          </div>
-                        </RadioGroup>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select time window" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Morning">Morning</SelectItem>
+                            <SelectItem value="Afternoon">Afternoon</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
                     </div>
                   </div>
 
                   <div className="space-y-4">
-                    <h4 className="text-sm font-medium">Ideal delivery date</h4>
+                    <h4 className="text-sm font-medium">Deliver latest until</h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label htmlFor="idealDeliveryDay">Day</Label>
-                        <DeliveryDatePicker value={idealDeliveryDay} onChange={setIdealDeliveryDay} label="ideal" />
+                        <Label htmlFor="latestDeliveryDate">Date</Label>
+                        <DatePicker
+                          date={latestDeliveryDate}
+                          onDateChange={setLatestDeliveryDate}
+                          placeholder="Select latest delivery date"
+                        />
                       </div>
                       <div className="space-y-2">
                         <Label>Time Window</Label>
-                        <RadioGroup
-                          value={idealDeliveryTimeWindow}
-                          onValueChange={(value) => setIdealDeliveryTimeWindow(value as "Morning" | "Afternoon")}
-                          className="flex space-x-4"
+                        <Select
+                          value={latestDeliveryTimeWindow}
+                          onValueChange={(value) => setLatestDeliveryTimeWindow(value as "Morning" | "Afternoon")}
                         >
-                          <div className="flex items-center space-x-2">
-                            <RadioGroupItem value="Morning" id="detail-ideal-morning" />
-                            <Label htmlFor="detail-ideal-morning">Morning</Label>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <RadioGroupItem value="Afternoon" id="detail-ideal-afternoon" />
-                            <Label htmlFor="detail-ideal-afternoon">Afternoon</Label>
-                          </div>
-                        </RadioGroup>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select time window" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Morning">Morning</SelectItem>
+                            <SelectItem value="Afternoon">Afternoon</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
                     </div>
                   </div>
@@ -474,12 +475,25 @@ export function TransportDetailDialog({
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="weight">Weight</Label>
+                        <Label htmlFor="weight">Weight (kg)</Label>
                         <Input
                           id="weight"
+                          type="text"
+                          inputMode="decimal"
                           value={weight}
-                          onChange={(e) => setWeight(e.target.value)}
-                          placeholder="Weight"
+                          onChange={(e) => handleNumericChange(setWeight, e.target.value)}
+                          placeholder="Weight in kg"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="volume">Volume (m³)</Label>
+                        <Input
+                          id="volume"
+                          type="text"
+                          inputMode="decimal"
+                          value={volume}
+                          onChange={(e) => handleNumericChange(setVolume, e.target.value)}
+                          placeholder="Volume in cubic meters"
                         />
                       </div>
                     </div>
@@ -596,29 +610,29 @@ export function TransportDetailDialog({
                     </div>
 
                     <div>
-                      <h4 className="text-sm font-medium">Deliver latest until</h4>
+                      <h4 className="text-sm font-medium">Ideal delivery date</h4>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
                         <div>
-                          <h5 className="text-sm font-medium text-gray-500">Day</h5>
-                          <p className="mt-1 capitalize">{transport.latestDeliveryDay || "Not specified"}</p>
+                          <h5 className="text-sm font-medium text-gray-500">Date</h5>
+                          <p className="mt-1">{formatDeliveryDate(transport.deliveryDate)}</p>
                         </div>
                         <div>
                           <h5 className="text-sm font-medium text-gray-500">Time Window</h5>
-                          <p className="mt-1">{transport.latestDeliveryTimeWindow || "Not specified"}</p>
+                          <p className="mt-1">{transport.idealDeliveryTimeWindow || "Not specified"}</p>
                         </div>
                       </div>
                     </div>
 
                     <div>
-                      <h4 className="text-sm font-medium">Ideal delivery date</h4>
+                      <h4 className="text-sm font-medium">Deliver latest until</h4>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
                         <div>
-                          <h5 className="text-sm font-medium text-gray-500">Day</h5>
-                          <p className="mt-1 capitalize">{transport.idealDeliveryDay || "Not specified"}</p>
+                          <h5 className="text-sm font-medium text-gray-500">Date</h5>
+                          <p className="mt-1">{formatDeliveryDate(transport.deliveryDate)}</p>
                         </div>
                         <div>
                           <h5 className="text-sm font-medium text-gray-500">Time Window</h5>
-                          <p className="mt-1">{transport.idealDeliveryTimeWindow || "Not specified"}</p>
+                          <p className="mt-1">{transport.latestDeliveryTimeWindow || "Not specified"}</p>
                         </div>
                       </div>
                     </div>
@@ -664,16 +678,17 @@ export function TransportDetailDialog({
                         <p className="mt-1">{transport.referenceNumber || "Not specified"}</p>
                       </div>
                       <div>
-                        <h4 className="text-sm font-medium text-gray-500">Weight</h4>
+                        <h4 className="text-sm font-medium text-gray-500">Weight (kg)</h4>
                         <p className="mt-1">{transport.weight || "Not specified"}</p>
                       </div>
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-medium text-gray-500">Size</h4>
-                      <p className="mt-1 flex items-center gap-1">
-                        {getSizeIcon()}
-                        {transport.size || "Not specified"}
-                      </p>
+                      <div>
+                        <h4 className="text-sm font-medium text-gray-500">Volume (m³)</h4>
+                        <p className="mt-1">{transport.volume || "Not specified"}</p>
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-medium text-gray-500">Size</h4>
+                        <p className="mt-1">{transport.size || "Not specified"}</p>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -684,14 +699,16 @@ export function TransportDetailDialog({
                     <Truck className="h-4 w-4" />
                     Unloading Options
                   </h3>
-                  <div>
-                    <ul className="list-disc list-inside">
-                      {transport.unloadingOptions && transport.unloadingOptions.length > 0 ? (
-                        transport.unloadingOptions.map((option, index) => <li key={index}>{option}</li>)
-                      ) : (
-                        <li>No options selected</li>
-                      )}
-                    </ul>
+                  <div className="space-y-2">
+                    {transport.unloadingOptions && transport.unloadingOptions.length > 0 ? (
+                      transport.unloadingOptions.map((option, index) => (
+                        <p className="mt-1" key={index}>
+                          {option}
+                        </p>
+                      ))
+                    ) : (
+                      <p className="mt-1">Not specified</p>
+                    )}
                   </div>
                 </div>
 
@@ -701,79 +718,41 @@ export function TransportDetailDialog({
                     <FileText className="h-4 w-4" />
                     Document
                   </h3>
-                  <div>
-                    {transport.documentUrl ? (
-                      <div className="flex items-center gap-2">
-                        <FileText className="h-4 w-4" />
-                        <a
-                          href={transport.documentUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-blue-600 hover:underline"
-                        >
-                          {transport.documentName || "View Document"}
-                        </a>
-                      </div>
-                    ) : (
-                      <p>No document uploaded</p>
-                    )}
-                  </div>
+                  {transport.documentName ? (
+                    <div className="flex items-center gap-2 text-sm">
+                      <FileText className="h-4 w-4" />
+                      <span>{transport.documentName}</span>
+                    </div>
+                  ) : (
+                    <p>No document uploaded</p>
+                  )}
                 </div>
               </div>
             )}
           </TabsContent>
 
-          <TabsContent value="history" className="space-y-4">
-            <div className="border rounded-md p-4">
-              <h3 className="font-medium mb-2">Transport History</h3>
-              <ul className="space-y-2">
-                <li className="flex items-center gap-2 text-sm">
-                  <span className="text-green-500">●</span>
-                  <span className="text-gray-500">Created on</span>
-                  <span>
-                    {transport.createdDate ? format(parseISO(transport.createdDate), "MMM d, yyyy") : "May 15, 2025"}
-                  </span>
-                  <span className="text-gray-500">by</span>
-                  <span>{transport.createdBy || "Unknown"}</span>
-                </li>
-                <li className="flex items-center gap-2 text-sm">
-                  <span className="text-blue-500">●</span>
-                  <span className="text-gray-500">Last modified on</span>
-                  <span>
-                    {transport.lastModifiedDate
-                      ? format(parseISO(transport.lastModifiedDate), "MMM d, yyyy")
-                      : "May 17, 2025"}
-                  </span>
-                  <span className="text-gray-500">by</span>
-                  <span>{transport.lastModifiedBy || "Unknown"}</span>
-                </li>
-                <li className="flex items-center gap-2 text-sm">
-                  <span className="text-purple-500">●</span>
-                  <span className="text-gray-500">Creation channel</span>
-                  <span>{transport.creationChannel || "bexOS form"}</span>
-                </li>
-              </ul>
-            </div>
+          <TabsContent value="history">
+            <p>This is the history tab.</p>
           </TabsContent>
         </Tabs>
 
-        <DialogFooter className="mt-6">
-          {isEditing ? (
+        <div className="flex justify-end space-x-2 mt-4">
+          {!isEditing ? (
             <>
-              <Button variant="outline" onClick={handleCancel}>
-                Cancel
+              <Button variant="outline" onClick={() => setIsEditing(true)}>
+                Edit Details
               </Button>
-              <Button onClick={handleSave}>Save Changes</Button>
+              <Button variant="destructive">Delete</Button>
             </>
           ) : (
             <>
-              <Button variant="outline" onClick={() => onOpenChange(false)}>
-                Close
+              <Button variant="ghost" onClick={handleCancel}>
+                Cancel
               </Button>
-              <Button onClick={() => setIsEditing(true)}>Edit</Button>
+              <Button onClick={handleSave}>Save</Button>
             </>
           )}
-        </DialogFooter>
+        </div>
       </DialogContent>
     </Dialog>
   )

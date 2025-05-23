@@ -1,12 +1,21 @@
 import { getSupabaseClient } from "./supabase"
-import type { AppConfig, CapacitySettings } from "./types"
+import type { AppConfig, CapacityLimits } from "@/lib/types"
 
 // Default configuration values
 const DEFAULT_CONFIG: AppConfig = {
   capacitySettings: {
-    monday: 3,
-    wednesday: 2,
-    friday: 3,
+    monday: {
+      weight: 1000,
+      volume: 10,
+    },
+    wednesday: {
+      weight: 800,
+      volume: 8,
+    },
+    friday: {
+      weight: 1000,
+      volume: 10,
+    },
   },
   availableDays: ["monday", "wednesday", "friday"],
   timeWindows: ["Morning", "Afternoon"],
@@ -46,7 +55,7 @@ export const fetchConfigurations = async (): Promise<AppConfig> => {
 
     // Combine all configurations
     return {
-      capacitySettings: capacityData.value as CapacitySettings,
+      capacitySettings: capacityData.value as { [key: string]: CapacityLimits },
       availableDays: daysData.value as string[],
       timeWindows: timeWindowsData.value as string[],
     }
@@ -57,7 +66,7 @@ export const fetchConfigurations = async (): Promise<AppConfig> => {
 }
 
 // Update capacity settings
-export const updateCapacitySettings = async (capacitySettings: CapacitySettings): Promise<void> => {
+export const updateCapacitySettings = async (capacitySettings: { [key: string]: CapacityLimits }): Promise<void> => {
   const supabase = getSupabaseClient()
 
   try {
