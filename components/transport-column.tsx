@@ -1,5 +1,8 @@
 "use client"
 
+import type React from "react"
+
+import { useState } from "react"
 import { TransportCard } from "./transport-card"
 import { EmptySlot } from "./empty-slot"
 import { CapacityProgressBar } from "./capacity-progress-bar"
@@ -19,8 +22,12 @@ export function TransportColumn({
   onTransportClick,
   onEmptySlotClick,
   routeInfo,
+  onDrop,
 }: TransportColumnProps) {
-  // Use the date string as the column ID
+  const [isOver, setIsOver] = useState(false)
+  const [draggedTransport, setDraggedTransport] = useState<any>(null)
+
+  // Use the date string as the droppable ID
   const dateString = date ? format(date, "yyyy-MM-dd") : day
   const formattedDay = day.charAt(0).toUpperCase() + day.slice(1)
   const formattedDate = date && !isNaN(date.getTime()) ? format(date, "EEE, MMM d, yyyy") : ""
@@ -30,8 +37,73 @@ export function TransportColumn({
   const isVolumeAtCapacity = capacityUsage.volume >= capacityLimits.volume
   const isAnyCapacityReached = isWeightAtCapacity || isVolumeAtCapacity
 
-  // Determine column header color based on capacity
+  // Handle drag over
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    // Prevent default to allow drop
+    e.preventDefault()
+
+    // Set the drop effect
+    e.dataTransfer.dropEffect = "move"
+
+    // Update the isOver state
+    if (!isOver) {
+      setIsOver(true)
+    }
+  }
+
+  // Handle drag enter
+  const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+
+    // Try to get transport data from drag event
+    try {
+      const transportData = e.dataTransfer.getData("application/json")
+      if (transportData) {
+        setDraggedTransport(JSON.parse(transportData))
+      }
+    } catch (error) {
+      // Fallback to just the ID
+      const transportId = e.dataTransfer.getData("text/plain")
+      setDraggedTransport({ id: transportId })
+    }
+
+    setIsOver(true)
+  }
+
+  // Handle drag leave
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    // Only set isOver to false if we're leaving the column entirely
+    const rect = e.currentTarget.getBoundingClientRect()
+    const x = e.clientX
+    const y = e.clientY
+
+    if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
+      setIsOver(false)
+      setDraggedTransport(null)
+    }
+  }
+
+  // Handle drop
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    setIsOver(false)
+    setDraggedTransport(null)
+
+    // Get the transport ID from the drag data
+    const transportId = e.dataTransfer.getData("text/plain")
+
+    // Call the onDrop callback if provided
+    if (onDrop && transportId) {
+      onDrop(transportId, dateString)
+    }
+
+    // Remove dragging class from body
+    document.body.classList.remove("dragging")
+  }
+
+  // Determine column header color based on capacity and drag over state
   const getColumnHeaderClass = () => {
+    if (isOver) return "bg-blue-200 border-blue-400 shadow-lg" // Highlight when dragging over
     if (isAnyCapacityReached) return "bg-red-100 border-red-300"
     switch (day.toLowerCase()) {
       case "monday":
@@ -45,17 +117,46 @@ export function TransportColumn({
     }
   }
 
+  // Get drop zone class
+  const getDropZoneClass = () => {
+    if (isOver) {
+      return "bg-blue-50 border-blue-300 border-dashed"
+    }
+    return "bg-gray-50 border-gray-200"
+  }
+
   const totalTransports = transports.length + addonTransports.length
+
+  // Check if the dragged transport would exceed capacity
+  const wouldExceedCapacity = () => {
+    if (!draggedTransport) return false
+
+    const draggedWeight = Number(draggedTransport.weight) || 0
+    const draggedVolume = Number(draggedTransport.volume) || 0
+
+    const newWeight = capacityUsage.weight + draggedWeight
+    const newVolume = capacityUsage.volume + draggedVolume
+
+    return newWeight > capacityLimits.weight || newVolume > capacityLimits.volume
+  }
 
   return (
     <div className="flex flex-col h-full">
-      <div className={`p-4 rounded-t-lg border-2 ${getColumnHeaderClass()}`}>
+      <div className={`p-4 rounded-t-lg border-2 transition-all duration-200 ${getColumnHeaderClass()}`}>
         <div className="flex justify-between items-center mb-3">
           <div>
             <h3 className="font-semibold text-lg">{formattedDay}</h3>
             {formattedDate && <p className="text-sm text-gray-600">{formattedDate}</p>}
           </div>
+          {isOver && <div className="text-sm text-blue-600 font-medium">Drop here</div>}
         </div>
+
+        {/* Show capacity warning when dragging over */}
+        {isOver && draggedTransport && wouldExceedCapacity() && (
+          <div className="mb-3 p-2 bg-amber-100 border border-amber-300 rounded text-xs text-amber-800">
+            ⚠️ This would exceed capacity limits
+          </div>
+        )}
 
         {/* Route Information */}
         {routeInfo && totalTransports > 0 && (
@@ -97,12 +198,18 @@ export function TransportColumn({
         </div>
       </div>
 
-      <div className="bg-gray-50 p-4 rounded-b-lg flex-1 min-h-[500px] border-2 border-t-0 border-gray-200">
+      <div
+        onDragOver={handleDragOver}
+        onDragEnter={handleDragEnter}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+        className={`p-4 rounded-b-lg flex-1 min-h-[500px] border-2 border-t-0 transition-all duration-200 ${getDropZoneClass()}`}
+      >
         {transports.length === 0 && addonTransports.length === 0 ? (
           <div className="flex items-center justify-center h-full text-gray-400">
             <div className="text-center">
               <p className="text-lg mb-2">No transports scheduled</p>
-              <p className="text-sm">Click to add a transport</p>
+              <p className="text-sm">{isOver ? "Drop transport here" : "Drag transports here or click to add"}</p>
             </div>
           </div>
         ) : (
@@ -161,6 +268,15 @@ export function TransportColumn({
                 />
               </div>
             )}
+          </div>
+        )}
+
+        {/* Drop indicator overlay */}
+        {isOver && (
+          <div className="absolute inset-0 pointer-events-none">
+            <div className="w-full h-full border-2 border-dashed border-blue-400 rounded-lg bg-blue-50/20 flex items-center justify-center">
+              <div className="text-blue-600 font-medium text-lg">Drop transport here</div>
+            </div>
           </div>
         )}
       </div>

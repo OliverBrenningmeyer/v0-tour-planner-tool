@@ -92,3 +92,61 @@ body {
     @apply bg-background text-foreground;
   }
 }
+
+/* Drag and drop styles */
+[draggable="true"] {
+  cursor: grab;
+}
+
+[draggable="true"]:active {
+  cursor: grabbing;
+}
+
+body.dragging * {
+  cursor: grabbing !important;
+}
+
+/* Drag handle styles */
+.drag-handle:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.drag-handle:active {
+  transform: scale(1.02);
+}
+
+/* Drop zone animations */
+.drop-zone-active {
+  animation: pulse-border 2s infinite;
+}
+
+@keyframes pulse-border {
+  0% {
+    border-color: rgb(59 130 246);
+  }
+  50% {
+    border-color: rgb(147 197 253);
+  }
+  100% {
+    border-color: rgb(59 130 246);
+  }
+}
+
+/* Smooth transitions for drag states */
+.transport-card {
+  transition: all 0.2s ease-in-out;
+}
+
+.transport-card.dragging {
+  opacity: 0.5;
+  transform: rotate(5deg) scale(1.05);
+  z-index: 1000;
+}
+
+/* Column highlight during drag over */
+.column-drag-over {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(147, 197, 253, 0.1));
+  border-color: rgb(59 130 246);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}

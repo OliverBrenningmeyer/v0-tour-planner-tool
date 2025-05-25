@@ -56,6 +56,7 @@ export interface TransportColumnProps {
   onTransportClick?: (transport: Transport) => void
   onEmptySlotClick?: (day: string, isAddonSlot?: boolean) => void
   routeInfo?: RouteInfo
+  onDrop?: (transportId: string, targetDate: string) => void
 }
 
 // Updated interface for capacity limits - removed count
