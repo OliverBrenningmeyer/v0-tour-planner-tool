@@ -1,8 +1,6 @@
 "use client"
 
-import type React from "react"
-
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { Package, Truck, Box, User, Building, Calendar, FileText, Upload } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
@@ -15,10 +13,9 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
 import { Crane } from "./icons/crane"
-import { DatePicker } from "./date-picker"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { DeliveryDatePicker } from "./delivery-date-picker"
 import type { Transport, CapacityLimits } from "@/lib/types"
-import { format, parseISO } from "date-fns"
+import { format, parseISO, nextMonday, nextWednesday, nextFriday } from "date-fns"
 
 interface TransportDetailDialogProps {
   transport: Transport | null
@@ -46,15 +43,11 @@ export function TransportDetailDialog({
   const [ordererName, setOrdererName] = useState(transport?.ordererName || "")
 
   // Delivery date details
-  const [latestDeliveryDate, setLatestDeliveryDate] = useState<Date | undefined>(
-    transport?.deliveryDate ? parseISO(transport.deliveryDate) : undefined,
-  )
+  const [latestDeliveryDay, setLatestDeliveryDay] = useState(transport?.latestDeliveryDay || "")
   const [latestDeliveryTimeWindow, setLatestDeliveryTimeWindow] = useState<"Morning" | "Afternoon">(
     transport?.latestDeliveryTimeWindow || "Morning",
   )
-  const [idealDeliveryDate, setIdealDeliveryDate] = useState<Date | undefined>(
-    transport?.deliveryDate ? parseISO(transport.deliveryDate) : undefined,
-  )
+  const [idealDeliveryDay, setIdealDeliveryDay] = useState(transport?.idealDeliveryDay || "")
   const [idealDeliveryTimeWindow, setIdealDeliveryTimeWindow] = useState<"Morning" | "Afternoon">(
     transport?.idealDeliveryTimeWindow || "Morning",
   )
@@ -67,9 +60,9 @@ export function TransportDetailDialog({
   // Load details
   const [loadDescription, setLoadDescription] = useState(transport?.loadDescription || "")
   const [referenceNumber, setReferenceNumber] = useState(transport?.referenceNumber || "")
-  const [weight, setWeight] = useState<string>(transport?.weight?.toString() || "0")
+  const [weight, setWeight] = useState(transport?.weight || "")
   const [size, setSize] = useState(transport?.size || "M")
-  const [volume, setVolume] = useState<string>(transport?.volume?.toString() || "0")
+  const [volume, setVolume] = useState(transport?.volume || "")
 
   // Unloading options
   const [unloadingOptions, setUnloadingOptions] = useState<string[]>(transport?.unloadingOptions || ["Boardsteinkarte"])
@@ -84,49 +77,61 @@ export function TransportDetailDialog({
   const [deliveryDay, setDeliveryDay] = useState<string>(transport?.deliveryDay || "monday")
 
   // Reset form when transport changes
-  useEffect(() => {
-    if (transport && !isEditing) {
-      // Orderer information
-      setOrdererBranch(transport.ordererBranch || "")
-      setOrdererName(transport.ordererName || "")
+  if (transport && transport.name !== name && !isEditing) {
+    // Orderer information
+    setOrdererBranch(transport.ordererBranch || "")
+    setOrdererName(transport.ordererName || "")
 
-      // Delivery date details
-      setLatestDeliveryDate(transport.deliveryDate ? parseISO(transport.deliveryDate) : undefined)
-      setLatestDeliveryTimeWindow(transport.latestDeliveryTimeWindow || "Morning")
-      setIdealDeliveryDate(transport.deliveryDate ? parseISO(transport.deliveryDate) : undefined)
-      setIdealDeliveryTimeWindow(transport.idealDeliveryTimeWindow || "Morning")
+    // Delivery date details
+    setLatestDeliveryDay(transport.latestDeliveryDay || "")
+    setLatestDeliveryTimeWindow(transport.latestDeliveryTimeWindow || "Morning")
+    setIdealDeliveryDay(transport.idealDeliveryDay || "")
+    setIdealDeliveryTimeWindow(transport.idealDeliveryTimeWindow || "Morning")
 
-      // Customer information
-      setCustomerName(transport.customerName || "")
-      setCustomerAddress(transport.customerAddress || "")
-      setCustomerPhone(transport.customerPhone || "")
+    // Customer information
+    setCustomerName(transport.customerName || "")
+    setCustomerAddress(transport.customerAddress || "")
+    setCustomerPhone(transport.customerPhone || "")
 
-      // Load details
-      setLoadDescription(transport.loadDescription || "")
-      setReferenceNumber(transport.referenceNumber || "")
-      setWeight((transport.weight || 0).toString())
-      setSize(transport.size || "M")
-      setVolume((transport.volume || 0).toString())
+    // Load details
+    setLoadDescription(transport.loadDescription || "")
+    setReferenceNumber(transport.referenceNumber || "")
+    setWeight(transport.weight || "")
+    setSize(transport.size || "M")
+    setVolume(transport.volume || "")
 
-      // Unloading options
-      setUnloadingOptions(transport.unloadingOptions || ["Boardsteinkarte"])
+    // Unloading options
+    setUnloadingOptions(transport.unloadingOptions || ["Boardsteinkarte"])
 
-      // Legacy fields
-      setName(transport.name)
-      setDescription(transport.description)
-      setVehicleType(transport.vehicleType || "LKW")
-      setStatus(transport.status)
-      setDeliveryDay(transport.deliveryDay)
-    }
-  }, [transport, isEditing])
+    // Legacy fields
+    setName(transport.name)
+    setDescription(transport.description)
+    setVehicleType(transport.vehicleType || "LKW")
+    setStatus(transport.status)
+    setDeliveryDay(transport.deliveryDay)
+  }
 
   if (!transport) return null
 
-  const handleSave = () => {
-    if (!idealDeliveryDate || !latestDeliveryDate) {
-      alert("Please select both delivery dates")
-      return
+  // Get the actual delivery date based on the selected day
+  const getDeliveryDate = (day: string): Date => {
+    const today = new Date()
+
+    switch (day) {
+      case "monday":
+        return nextMonday(today)
+      case "wednesday":
+        return nextWednesday(today)
+      case "friday":
+        return nextFriday(today)
+      default:
+        return today
     }
+  }
+
+  const handleSave = async () => {
+    // Get the delivery date based on the selected day
+    const deliveryDate = getDeliveryDate(latestDeliveryDay)
 
     const updatedTransport: Transport = {
       ...transport,
@@ -135,9 +140,11 @@ export function TransportDetailDialog({
       ordererName,
 
       // Delivery date details
-      deliveryDate: idealDeliveryDate.toISOString(), // Use ideal date as the actual delivery date
+      latestDeliveryDay,
       latestDeliveryTimeWindow,
+      idealDeliveryDay,
       idealDeliveryTimeWindow,
+      deliveryDate: deliveryDate.toISOString(), // Update the actual date
 
       // Customer information
       customerName,
@@ -147,12 +154,12 @@ export function TransportDetailDialog({
       // Load details
       loadDescription,
       referenceNumber,
-      weight: Number(weight) || 0, // Ensure weight is a number
+      weight: Number(weight) || 0, // Ensure numeric value
+      volume: Number(volume) || 0, // Ensure numeric value
       size,
-      volume: Number(volume) || 0, // Ensure volume is a number
 
       // Unloading options
-      unloadingOptions,
+      unloadingOptions: unloadingOptions || [],
 
       // Update last modified
       lastModifiedDate: new Date().toISOString(),
@@ -163,8 +170,9 @@ export function TransportDetailDialog({
       description: loadDescription, // Update description to match load description
       vehicleType,
       status,
-      deliveryDay: format(idealDeliveryDate, "EEEE").toLowerCase(), // Update the day of week based on the date
+      deliveryDay: idealDeliveryDay, // Update the main delivery day to match ideal
     }
+
     onUpdate(updatedTransport)
     setIsEditing(false)
   }
@@ -177,9 +185,9 @@ export function TransportDetailDialog({
       setOrdererName(transport.ordererName || "")
 
       // Delivery date details
-      setLatestDeliveryDate(transport.deliveryDate ? parseISO(transport.deliveryDate) : undefined)
+      setLatestDeliveryDay(transport.latestDeliveryDay || "")
       setLatestDeliveryTimeWindow(transport.latestDeliveryTimeWindow || "Morning")
-      setIdealDeliveryDate(transport.deliveryDate ? parseISO(transport.deliveryDate) : undefined)
+      setIdealDeliveryDay(transport.idealDeliveryDay || "")
       setIdealDeliveryTimeWindow(transport.idealDeliveryTimeWindow || "Morning")
 
       // Customer information
@@ -190,9 +198,9 @@ export function TransportDetailDialog({
       // Load details
       setLoadDescription(transport.loadDescription || "")
       setReferenceNumber(transport.referenceNumber || "")
-      setWeight((transport.weight || 0).toString())
+      setWeight(transport.weight || "")
       setSize(transport.size || "M")
-      setVolume((transport.volume || 0).toString())
+      setVolume(transport.volume || "")
 
       // Unloading options
       setUnloadingOptions(transport.unloadingOptions || ["Boardsteinkarte"])
@@ -214,6 +222,22 @@ export function TransportDetailDialog({
     } else {
       setUnloadingOptions([...unloadingOptions, option])
     }
+  }
+
+  // Check if the selected day is at capacity
+  const isDayAtCapacity = (day: string) => {
+    if (!day || !capacitySettings || !capacitySettings[day]) return false
+    if (day === transport.idealDeliveryDay) return false // Don't count the current transport
+
+    const dayTransports = transports.filter((t) => t.idealDeliveryDay === day && t.id !== transport.id)
+    const capacityLimits = capacitySettings[day]
+
+    // Calculate current usage using actual weight and volume
+    const weightUsage = dayTransports.reduce((sum, t) => sum + (Number(t.weight) || 0), 0)
+    const volumeUsage = dayTransports.reduce((sum, t) => sum + (Number(t.volume) || 0), 0)
+
+    // Check if any capacity limit is reached
+    return weightUsage >= capacityLimits.weight || volumeUsage >= capacityLimits.volume
   }
 
   // Get the vehicle type icon
@@ -249,14 +273,6 @@ export function TransportDetailDialog({
       return format(parseISO(dateString), "EEEE, MMMM d, yyyy")
     } catch (error) {
       return "Invalid date"
-    }
-  }
-
-  // Handle numeric input changes
-  const handleNumericChange = (setter: React.Dispatch<React.SetStateAction<string>>, value: string) => {
-    // Allow empty string, numbers, and decimal point
-    if (value === "" || /^[0-9]*\.?[0-9]*$/.test(value)) {
-      setter(value)
     }
   }
 
@@ -349,59 +365,58 @@ export function TransportDetailDialog({
                   </h3>
 
                   <div className="space-y-4">
-                    <h4 className="text-sm font-medium">Ideal delivery date</h4>
+                    <h4 className="text-sm font-medium">Deliver latest until</h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label htmlFor="idealDeliveryDate">Date</Label>
-                        <DatePicker
-                          date={idealDeliveryDate}
-                          onDateChange={setIdealDeliveryDate}
-                          placeholder="Select ideal delivery date"
-                        />
+                        <Label htmlFor="latestDeliveryDay">Day</Label>
+                        <DeliveryDatePicker value={latestDeliveryDay} onChange={setLatestDeliveryDay} label="latest" />
+                        {isDayAtCapacity(latestDeliveryDay) && (
+                          <p className="text-sm text-red-500">Warning: This day is at capacity</p>
+                        )}
                       </div>
                       <div className="space-y-2">
                         <Label>Time Window</Label>
-                        <Select
-                          value={idealDeliveryTimeWindow}
-                          onValueChange={(value) => setIdealDeliveryTimeWindow(value as "Morning" | "Afternoon")}
+                        <RadioGroup
+                          value={latestDeliveryTimeWindow}
+                          onValueChange={(value) => setLatestDeliveryTimeWindow(value as "Morning" | "Afternoon")}
+                          className="flex space-x-4"
                         >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select time window" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="Morning">Morning</SelectItem>
-                            <SelectItem value="Afternoon">Afternoon</SelectItem>
-                          </SelectContent>
-                        </Select>
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="Morning" id="detail-latest-morning" />
+                            <Label htmlFor="detail-latest-morning">Morning</Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="Afternoon" id="detail-latest-afternoon" />
+                            <Label htmlFor="detail-latest-afternoon">Afternoon</Label>
+                          </div>
+                        </RadioGroup>
                       </div>
                     </div>
                   </div>
 
                   <div className="space-y-4">
-                    <h4 className="text-sm font-medium">Deliver latest until</h4>
+                    <h4 className="text-sm font-medium">Ideal delivery date</h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label htmlFor="latestDeliveryDate">Date</Label>
-                        <DatePicker
-                          date={latestDeliveryDate}
-                          onDateChange={setLatestDeliveryDate}
-                          placeholder="Select latest delivery date"
-                        />
+                        <Label htmlFor="idealDeliveryDay">Day</Label>
+                        <DeliveryDatePicker value={idealDeliveryDay} onChange={setIdealDeliveryDay} label="ideal" />
                       </div>
                       <div className="space-y-2">
                         <Label>Time Window</Label>
-                        <Select
-                          value={latestDeliveryTimeWindow}
-                          onValueChange={(value) => setLatestDeliveryTimeWindow(value as "Morning" | "Afternoon")}
+                        <RadioGroup
+                          value={idealDeliveryTimeWindow}
+                          onValueChange={(value) => setIdealDeliveryTimeWindow(value as "Morning" | "Afternoon")}
+                          className="flex space-x-4"
                         >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select time window" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="Morning">Morning</SelectItem>
-                            <SelectItem value="Afternoon">Afternoon</SelectItem>
-                          </SelectContent>
-                        </Select>
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="Morning" id="detail-ideal-morning" />
+                            <Label htmlFor="detail-ideal-morning">Morning</Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="Afternoon" id="detail-ideal-afternoon" />
+                            <Label htmlFor="detail-ideal-afternoon">Afternoon</Label>
+                          </div>
+                        </RadioGroup>
                       </div>
                     </div>
                   </div>
@@ -478,10 +493,11 @@ export function TransportDetailDialog({
                         <Label htmlFor="weight">Weight (kg)</Label>
                         <Input
                           id="weight"
-                          type="text"
-                          inputMode="decimal"
+                          type="number"
+                          min="0"
+                          step="1"
                           value={weight}
-                          onChange={(e) => handleNumericChange(setWeight, e.target.value)}
+                          onChange={(e) => setWeight(Number(e.target.value) || 0)}
                           placeholder="Weight in kg"
                         />
                       </div>
@@ -489,10 +505,11 @@ export function TransportDetailDialog({
                         <Label htmlFor="volume">Volume (m³)</Label>
                         <Input
                           id="volume"
-                          type="text"
-                          inputMode="decimal"
+                          type="number"
+                          min="0"
+                          step="0.1"
                           value={volume}
-                          onChange={(e) => handleNumericChange(setVolume, e.target.value)}
+                          onChange={(e) => setVolume(Number(e.target.value) || 0)}
                           placeholder="Volume in cubic meters"
                         />
                       </div>
@@ -610,29 +627,29 @@ export function TransportDetailDialog({
                     </div>
 
                     <div>
-                      <h4 className="text-sm font-medium">Ideal delivery date</h4>
+                      <h4 className="text-sm font-medium">Deliver latest until</h4>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
                         <div>
-                          <h5 className="text-sm font-medium text-gray-500">Date</h5>
-                          <p className="mt-1">{formatDeliveryDate(transport.deliveryDate)}</p>
+                          <h5 className="text-sm font-medium text-gray-500">Day</h5>
+                          <p className="mt-1 capitalize">{transport.latestDeliveryDay || "Not specified"}</p>
                         </div>
                         <div>
                           <h5 className="text-sm font-medium text-gray-500">Time Window</h5>
-                          <p className="mt-1">{transport.idealDeliveryTimeWindow || "Not specified"}</p>
+                          <p className="mt-1">{transport.latestDeliveryTimeWindow || "Not specified"}</p>
                         </div>
                       </div>
                     </div>
 
                     <div>
-                      <h4 className="text-sm font-medium">Deliver latest until</h4>
+                      <h4 className="text-sm font-medium">Ideal delivery date</h4>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
                         <div>
-                          <h5 className="text-sm font-medium text-gray-500">Date</h5>
-                          <p className="mt-1">{formatDeliveryDate(transport.deliveryDate)}</p>
+                          <h5 className="text-sm font-medium text-gray-500">Day</h5>
+                          <p className="mt-1 capitalize">{transport.idealDeliveryDay || "Not specified"}</p>
                         </div>
                         <div>
                           <h5 className="text-sm font-medium text-gray-500">Time Window</h5>
-                          <p className="mt-1">{transport.latestDeliveryTimeWindow || "Not specified"}</p>
+                          <p className="mt-1">{transport.idealDeliveryTimeWindow || "Not specified"}</p>
                         </div>
                       </div>
                     </div>

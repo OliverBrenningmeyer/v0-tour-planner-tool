@@ -14,9 +14,9 @@ export interface Database {
           size: string
           ordererbranch: string
           orderername: string
-          latestdeliverydate: string // Changed from latestdeliveryday
+          latestdeliveryday: string
           latestdeliverytimewindow: string
-          idealdeliverydate: string // Changed from idealdeliveryday
+          idealdeliveryday: string
           idealdeliverytimewindow: string
           deliverydate: string | null
           customername: string
@@ -24,8 +24,8 @@ export interface Database {
           customerphone: string
           loaddescription: string
           referencenumber: string
-          weight: string
-          volume: string
+          weight: number
+          volume: number
           unloadingoptions: string[]
           documenturl: string | null
           documentname: string | null
@@ -45,9 +45,9 @@ export interface Database {
           size: string
           ordererbranch: string
           orderername: string
-          latestdeliverydate: string // Changed from latestdeliveryday
+          latestdeliveryday: string
           latestdeliverytimewindow: string
-          idealdeliverydate: string // Changed from idealdeliveryday
+          idealdeliveryday: string
           idealdeliverytimewindow: string
           deliverydate?: string | null
           customername: string
@@ -55,8 +55,8 @@ export interface Database {
           customerphone: string
           loaddescription: string
           referencenumber: string
-          weight: string
-          volume: string
+          weight: number
+          volume: number
           unloadingoptions: string[]
           documenturl?: string | null
           documentname?: string | null
@@ -76,9 +76,9 @@ export interface Database {
           size?: string
           ordererbranch?: string
           orderername?: string
-          latestdeliverydate?: string // Changed from latestdeliveryday
+          latestdeliveryday?: string
           latestdeliverytimewindow?: string
-          idealdeliverydate?: string // Changed from idealdeliveryday
+          idealdeliveryday?: string
           idealdeliverytimewindow?: string
           deliverydate?: string | null
           customername?: string
@@ -86,8 +86,8 @@ export interface Database {
           customerphone?: string
           loaddescription?: string
           referencenumber?: string
-          weight?: string
-          volume?: string
+          weight?: number
+          volume?: number
           unloadingoptions?: string[]
           documenturl?: string | null
           documentname?: string | null

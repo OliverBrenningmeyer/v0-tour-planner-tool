@@ -2,8 +2,8 @@
 
 import type React from "react"
 
-import { useState } from "react"
-import { Building, User, Package, FileText, Loader2, AlertTriangle } from "lucide-react"
+import { useState, useEffect } from "react"
+import { Building, User, Package, FileText, Loader2, CalendarIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -11,12 +11,11 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Checkbox } from "@/components/ui/checkbox"
-import { DatePicker } from "./date-picker"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import type { Transport, CapacityLimits } from "@/lib/types"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { DeliveryDatePicker } from "./delivery-date-picker"
+import { addDays } from "date-fns"
 import { Badge } from "@/components/ui/badge"
-import { format, parseISO, isWithinInterval, startOfDay, endOfDay } from "date-fns"
 
 interface TransportRegistrationFormProps {
   onAddTransport: (transport: Omit<Transport, "id">) => void
@@ -46,10 +45,10 @@ export function TransportRegistrationForm({
   const [ordererName] = useState("John Doe") // Prefilled from bexOS login
 
   // Delivery date details
-  const [idealDeliveryDate, setIdealDeliveryDate] = useState<Date | undefined>(undefined)
-  const [idealDeliveryTimeWindow, setIdealDeliveryTimeWindow] = useState<string>(timeWindows[0] || "Morning")
-  const [latestDeliveryDate, setLatestDeliveryDate] = useState<Date | undefined>(undefined)
+  const [latestDeliveryDay, setLatestDeliveryDay] = useState(initialDay || availableDays[0] || "monday")
   const [latestDeliveryTimeWindow, setLatestDeliveryTimeWindow] = useState<string>(timeWindows[0] || "Morning")
+  const [idealDeliveryDay, setIdealDeliveryDay] = useState(initialDay || availableDays[0] || "monday")
+  const [idealDeliveryTimeWindow, setIdealDeliveryTimeWindow] = useState<string>(timeWindows[0] || "Morning")
 
   // Customer information
   const [customerName, setCustomerName] = useState("")
@@ -59,8 +58,8 @@ export function TransportRegistrationForm({
   // Load details
   const [loadDescription, setLoadDescription] = useState("")
   const [referenceNumber, setReferenceNumber] = useState("")
-  const [weight, setWeight] = useState<string>("0")
-  const [volume, setVolume] = useState<string>("0")
+  const [weight, setWeight] = useState<number>(0)
+  const [volume, setVolume] = useState<number>(0)
   const [size, setSize] = useState<"S" | "M" | "L" | string>("M")
 
   // Unloading options
@@ -75,47 +74,55 @@ export function TransportRegistrationForm({
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Calculate current capacity usage for a specific date
-  const calculateCapacityUsageForDate = (date: Date) => {
-    const dayStart = startOfDay(date)
-    const dayEnd = endOfDay(date)
-
-    const dateTransports = transports.filter((transport) => {
-      if (!transport.idealDeliveryDate) return false
-      try {
-        const transportDate = parseISO(transport.idealDeliveryDate)
-        return isWithinInterval(transportDate, { start: dayStart, end: dayEnd })
-      } catch {
-        return false
-      }
-    })
-
-    const totalWeight = dateTransports.reduce((sum, t) => sum + (Number(t.weight) || 0), 0)
-    const totalVolume = dateTransports.reduce((sum, t) => sum + (Number(t.volume) || 0), 0)
-
-    return {
-      weight: totalWeight,
-      volume: totalVolume,
+  // Update delivery day when initialDay changes
+  useEffect(() => {
+    if (initialDay && availableDays.includes(initialDay)) {
+      setLatestDeliveryDay(initialDay)
+      setIdealDeliveryDay(initialDay)
+    } else if (availableDays.length > 0) {
+      setLatestDeliveryDay(availableDays[0])
+      setIdealDeliveryDay(availableDays[0])
     }
+  }, [initialDay, availableDays])
+
+  // Get the actual delivery date based on the selected day
+  const getDeliveryDate = (day: string): Date => {
+    const today = new Date()
+    let targetDate = new Date(today)
+
+    // Find the next occurrence of the selected day
+    let daysChecked = 0
+    while (daysChecked < 14) {
+      // Prevent infinite loop
+      const dayName = targetDate.toLocaleDateString("en-US", { weekday: "lowercase" })
+      if (dayName === day) break
+
+      targetDate = addDays(targetDate, 1)
+      daysChecked++
+    }
+
+    return targetDate
   }
 
-  // Check if adding this transport would exceed capacity
-  const wouldExceedCapacity = (date: Date, newWeight: number, newVolume: number) => {
-    const dayName = format(date, "EEEE").toLowerCase()
-    const capacityLimits = capacityPerDay[dayName] || { weight: 1000, volume: 10 }
-    const currentUsage = calculateCapacityUsageForDate(date)
+  // Check if the selected day is at capacity
+  const isDayAtCapacity = (day: string) => {
+    if (!day) return false
+    if (isAddonSlot) return false // Addon slots don't have capacity limits
 
-    const newTotalWeight = currentUsage.weight + newWeight
-    const newTotalVolume = currentUsage.volume + newVolume
+    const dayCapacity = capacityPerDay[day]
+    if (!dayCapacity) return false
 
-    return {
-      exceedsWeight: newTotalWeight > capacityLimits.weight,
-      exceedsVolume: newTotalVolume > capacityLimits.volume,
-      currentUsage,
-      capacityLimits,
-      newTotalWeight,
-      newTotalVolume,
-    }
+    // Count transports by ideal delivery day
+    const dayTransports = transports.filter((t) => t.idealDeliveryDay === day)
+
+    // Calculate current usage
+    const currentCount = dayTransports.length
+    const currentWeight = dayTransports.reduce((sum, t) => sum + (t.weight || 0), 0)
+    const currentVolume = dayTransports.reduce((sum, t) => sum + (t.volume || 0), 0)
+
+    return (
+      currentCount >= dayCapacity.count || currentWeight >= dayCapacity.weight || currentVolume >= dayCapacity.volume
+    )
   }
 
   // Toggle unloading option
@@ -127,63 +134,25 @@ export function TransportRegistrationForm({
     }
   }
 
-  // Handle numeric input changes
-  const handleNumericChange = (setter: React.Dispatch<React.SetStateAction<string>>, value: string) => {
-    // Allow empty string, numbers, and decimal point
-    if (value === "" || /^[0-9]*\.?[0-9]*$/.test(value)) {
-      setter(value)
-    }
-  }
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!customerName || !loadDescription) {
+    if (!customerName || !loadDescription || !latestDeliveryDay || !idealDeliveryDay) {
       setError("Please fill in all required fields")
       return
     }
 
-    // Validate dates
-    if (!idealDeliveryDate || !latestDeliveryDate) {
-      setError("Please select both delivery dates")
+    if (!isAddonSlot && isDayAtCapacity(idealDeliveryDay)) {
+      setError(
+        `${idealDeliveryDay.charAt(0).toUpperCase() + idealDeliveryDay.slice(1)} is at capacity. Please select another day.`,
+      )
       return
     }
 
-    const transportWeight = Number(weight) || 0
-    const transportVolume = Number(volume) || 0
-
-    // Check capacity only if this is not an addon slot
-    if (!isAddonSlot) {
-      const capacityCheck = wouldExceedCapacity(idealDeliveryDate, transportWeight, transportVolume)
-
-      if (capacityCheck.exceedsWeight || capacityCheck.exceedsVolume) {
-        const exceedMessages = []
-        if (capacityCheck.exceedsWeight) {
-          exceedMessages.push(
-            `Weight: ${capacityCheck.newTotalWeight}kg exceeds limit of ${capacityCheck.capacityLimits.weight}kg`,
-          )
-        }
-        if (capacityCheck.exceedsVolume) {
-          exceedMessages.push(
-            `Volume: ${capacityCheck.newTotalVolume}m³ exceeds limit of ${capacityCheck.capacityLimits.volume}m³`,
-          )
-        }
-
-        setError(
-          `Cannot add to regular slots - capacity exceeded:\n${exceedMessages.join(
-            "\n",
-          )}\n\nPlease use additional slots or reduce the transport size.`,
-        )
-        return
-      }
-    }
-
     setIsSubmitting(true)
-    setError(null)
 
-    // Ensure dates are valid ISO strings
-    const idealDeliveryDateISO = idealDeliveryDate.toISOString()
-    const latestDeliveryDateISO = latestDeliveryDate.toISOString()
+    // Get the delivery date based on the selected day
+    const deliveryDate = getDeliveryDate(idealDeliveryDay)
 
     // Create new transport
     const newTransport: Omit<Transport, "id"> = {
@@ -192,11 +161,11 @@ export function TransportRegistrationForm({
       ordererName,
 
       // Delivery date details
-      deliveryDate: idealDeliveryDateISO, // Use ideal date as the actual delivery date
-      latestDeliveryDate: latestDeliveryDateISO,
+      latestDeliveryDay,
       latestDeliveryTimeWindow: latestDeliveryTimeWindow as "Morning" | "Afternoon",
-      idealDeliveryDate: idealDeliveryDateISO,
+      idealDeliveryDay,
       idealDeliveryTimeWindow: idealDeliveryTimeWindow as "Morning" | "Afternoon",
+      deliveryDate: deliveryDate.toISOString(), // Store the actual date
 
       // Customer information
       customerName,
@@ -206,8 +175,8 @@ export function TransportRegistrationForm({
       // Load details
       loadDescription,
       referenceNumber,
-      weight: transportWeight, // Ensure weight is a number
-      volume: transportVolume, // Ensure volume is a number
+      weight,
+      volume,
       size,
 
       // Unloading options
@@ -227,7 +196,7 @@ export function TransportRegistrationForm({
       // Legacy fields
       name: customerName, // Use customer name as transport name for compatibility
       description: loadDescription, // Use load description for compatibility
-      deliveryDay: format(idealDeliveryDate, "EEEE").toLowerCase(), // Get day of week from date
+      deliveryDay: idealDeliveryDay, // Use ideal delivery day for compatibility
       status: "pending",
       vehicleType: unloadingOptions.includes("with crane") ? "Kran" : "LKW", // Determine vehicle type from unloading options
     }
@@ -236,48 +205,21 @@ export function TransportRegistrationForm({
     setIsSubmitting(false)
   }
 
-  // Get capacity info for the selected date
-  const getCapacityInfo = () => {
-    if (!idealDeliveryDate) return null
-
-    const transportWeight = Number(weight) || 0
-    const transportVolume = Number(volume) || 0
-    const capacityCheck = wouldExceedCapacity(idealDeliveryDate, transportWeight, transportVolume)
-
-    return capacityCheck
+  const renderTimeWindowOptions = () => {
+    return timeWindows.map((timeWindow) => (
+      <div key={timeWindow} className="flex items-center space-x-2">
+        <RadioGroupItem value={timeWindow} id={`ideal-${timeWindow.toLowerCase()}`} />
+        <Label htmlFor={`ideal-${timeWindow.toLowerCase()}`}>{timeWindow}</Label>
+      </div>
+    ))
   }
-
-  const capacityInfo = getCapacityInfo()
 
   const formContent = (
     <form onSubmit={handleSubmit} className="space-y-6">
       {error && (
         <Alert variant="destructive">
           <AlertTitle>Error</AlertTitle>
-          <AlertDescription className="whitespace-pre-line">{error}</AlertDescription>
-        </Alert>
-      )}
-
-      {/* Capacity warning for regular slots */}
-      {!isAddonSlot && capacityInfo && (capacityInfo.exceedsWeight || capacityInfo.exceedsVolume) && (
-        <Alert variant="destructive">
-          <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>Capacity Warning</AlertTitle>
-          <AlertDescription>
-            Adding this transport would exceed capacity limits. Consider using additional slots or reducing the
-            transport size.
-            <div className="mt-2 text-sm">
-              <div>
-                Current usage: {capacityInfo.currentUsage.weight}kg / {capacityInfo.currentUsage.volume}m³
-              </div>
-              <div>
-                After adding: {capacityInfo.newTotalWeight}kg / {capacityInfo.newTotalVolume}m³
-              </div>
-              <div>
-                Limits: {capacityInfo.capacityLimits.weight}kg / {capacityInfo.capacityLimits.volume}m³
-              </div>
-            </div>
-          </AlertDescription>
+          <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
 
@@ -304,7 +246,7 @@ export function TransportRegistrationForm({
       {/* Delivery Date */}
       <div className="space-y-4 border rounded-md p-4">
         <h3 className="font-medium flex items-center gap-2">
-          <Package className="h-4 w-4" />
+          <CalendarIcon className="h-4 w-4" />
           Delivery Date
         </h3>
 
@@ -312,27 +254,26 @@ export function TransportRegistrationForm({
           <h4 className="text-sm font-medium">Ideal delivery date</h4>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="idealDeliveryDate">Date</Label>
-              <DatePicker
-                date={idealDeliveryDate}
-                onDateChange={setIdealDeliveryDate}
-                placeholder="Select ideal delivery date"
+              <Label htmlFor="idealDeliveryDay">Day</Label>
+              <DeliveryDatePicker
+                value={idealDeliveryDay}
+                onChange={setIdealDeliveryDay}
+                label="ideal"
+                availableDays={availableDays}
               />
+              {!isAddonSlot && isDayAtCapacity(idealDeliveryDay) && (
+                <p className="text-sm text-red-500">Warning: This day is at capacity</p>
+              )}
             </div>
             <div className="space-y-2">
               <Label>Time Window</Label>
-              <Select value={idealDeliveryTimeWindow} onValueChange={setIdealDeliveryTimeWindow}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select time window" />
-                </SelectTrigger>
-                <SelectContent>
-                  {timeWindows.map((window) => (
-                    <SelectItem key={window} value={window}>
-                      {window}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <RadioGroup
+                value={idealDeliveryTimeWindow}
+                onValueChange={setIdealDeliveryTimeWindow}
+                className="flex space-x-4"
+              >
+                {renderTimeWindowOptions()}
+              </RadioGroup>
             </div>
           </div>
         </div>
@@ -341,27 +282,23 @@ export function TransportRegistrationForm({
           <h4 className="text-sm font-medium">Deliver latest until</h4>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="latestDeliveryDate">Date</Label>
-              <DatePicker
-                date={latestDeliveryDate}
-                onDateChange={setLatestDeliveryDate}
-                placeholder="Select latest delivery date"
+              <Label htmlFor="latestDeliveryDay">Day</Label>
+              <DeliveryDatePicker
+                value={latestDeliveryDay}
+                onChange={setLatestDeliveryDay}
+                label="latest"
+                availableDays={availableDays}
               />
             </div>
             <div className="space-y-2">
               <Label>Time Window</Label>
-              <Select value={latestDeliveryTimeWindow} onValueChange={setLatestDeliveryTimeWindow}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select time window" />
-                </SelectTrigger>
-                <SelectContent>
-                  {timeWindows.map((window) => (
-                    <SelectItem key={window} value={window}>
-                      {window}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <RadioGroup
+                value={latestDeliveryTimeWindow}
+                onValueChange={setLatestDeliveryTimeWindow}
+                className="flex space-x-4"
+              >
+                {renderTimeWindowOptions()}
+              </RadioGroup>
             </div>
           </div>
         </div>
@@ -440,10 +377,11 @@ export function TransportRegistrationForm({
               <Label htmlFor="weight">Weight (kg)</Label>
               <Input
                 id="weight"
-                type="text"
-                inputMode="decimal"
+                type="number"
+                min="0"
+                step="1"
                 value={weight}
-                onChange={(e) => handleNumericChange(setWeight, e.target.value)}
+                onChange={(e) => setWeight(Number(e.target.value) || 0)}
                 placeholder="Weight in kg"
               />
             </div>
@@ -451,10 +389,11 @@ export function TransportRegistrationForm({
               <Label htmlFor="volume">Volume (m³)</Label>
               <Input
                 id="volume"
-                type="text"
-                inputMode="decimal"
+                type="number"
+                min="0"
+                step="0.1"
                 value={volume}
-                onChange={(e) => handleNumericChange(setVolume, e.target.value)}
+                onChange={(e) => setVolume(Number(e.target.value) || 0)}
                 placeholder="Volume in cubic meters"
               />
             </div>
@@ -537,13 +476,7 @@ export function TransportRegistrationForm({
         </div>
       </div>
 
-      <Button
-        type="submit"
-        className="w-full"
-        disabled={
-          isSubmitting || (!isAddonSlot && capacityInfo && (capacityInfo.exceedsWeight || capacityInfo.exceedsVolume))
-        }
-      >
+      <Button type="submit" className="w-full" disabled={isSubmitting}>
         {isSubmitting ? (
           <>
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -582,5 +515,29 @@ export function TransportRegistrationForm({
     )
   }
 
-  return <div>{formContent}</div>
+  return (
+    <div className="p-6">
+      <div className="mb-6">
+        <div className="flex justify-between items-start">
+          <div>
+            <h2 className="text-2xl font-semibold">Register New Transport</h2>
+            <p className="text-sm text-muted-foreground">Schedule a new transport for delivery</p>
+          </div>
+          <div className="flex gap-2">
+            {isAddonSlot && (
+              <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
+                Additional Slot
+              </Badge>
+            )}
+            {initialDay && (
+              <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                {initialDay.charAt(0).toUpperCase() + initialDay.slice(1)}
+              </Badge>
+            )}
+          </div>
+        </div>
+      </div>
+      {formContent}
+    </div>
+  )
 }

@@ -1,5 +1,5 @@
 import { getSupabaseClient } from "./supabase"
-import type { AppConfig, CapacityLimits, TourPlanningSettings } from "@/lib/types"
+import type { AppConfig, CapacityLimits } from "@/lib/types"
 
 // Default configuration values
 const DEFAULT_CONFIG: AppConfig = {
@@ -19,10 +19,6 @@ const DEFAULT_CONFIG: AppConfig = {
   },
   availableDays: ["monday", "wednesday", "friday"],
   timeWindows: ["Morning", "Afternoon"],
-  tourPlanning: {
-    depotAddress: "Berlin Zentrale",
-    stopTimeMinutes: 30,
-  },
 }
 
 // Fetch all configurations from Supabase
@@ -30,23 +26,38 @@ export const fetchConfigurations = async (): Promise<AppConfig> => {
   const supabase = getSupabaseClient()
 
   try {
-    // Fetch all configurations at once
-    const { data: allConfigs, error } = await supabase
+    // Fetch capacity settings
+    const { data: capacityData, error: capacityError } = await supabase
       .from("configurations")
       .select("*")
-      .in("key", ["capacity_settings", "available_days", "time_windows", "tour_planning"])
+      .eq("key", "capacity_settings")
+      .single()
 
-    if (error) throw error
+    if (capacityError) throw capacityError
 
-    // Create a map for easy lookup
-    const configMap = new Map(allConfigs?.map((config) => [config.key, config.value]) || [])
+    // Fetch available days
+    const { data: daysData, error: daysError } = await supabase
+      .from("configurations")
+      .select("*")
+      .eq("key", "available_days")
+      .single()
 
-    // Build the configuration object with defaults for missing values
+    if (daysError) throw daysError
+
+    // Fetch time windows
+    const { data: timeWindowsData, error: timeWindowsError } = await supabase
+      .from("configurations")
+      .select("*")
+      .eq("key", "time_windows")
+      .single()
+
+    if (timeWindowsError) throw timeWindowsError
+
+    // Combine all configurations
     return {
-      capacitySettings: configMap.get("capacity_settings") || DEFAULT_CONFIG.capacitySettings,
-      availableDays: configMap.get("available_days") || DEFAULT_CONFIG.availableDays,
-      timeWindows: configMap.get("time_windows") || DEFAULT_CONFIG.timeWindows,
-      tourPlanning: configMap.get("tour_planning") || DEFAULT_CONFIG.tourPlanning,
+      capacitySettings: capacityData.value as { [key: string]: CapacityLimits },
+      availableDays: daysData.value as string[],
+      timeWindows: timeWindowsData.value as string[],
     }
   } catch (error) {
     console.error("Error fetching configurations:", error)
@@ -117,27 +128,6 @@ export const updateTimeWindows = async (timeWindows: string[]): Promise<void> =>
   }
 }
 
-// Update tour planning settings
-export const updateTourPlanningSettings = async (tourPlanning: TourPlanningSettings): Promise<void> => {
-  const supabase = getSupabaseClient()
-
-  try {
-    const { error } = await supabase
-      .from("configurations")
-      .update({
-        value: tourPlanning,
-        lastmodifieddate: new Date().toISOString(),
-        lastmodifiedby: "Current User",
-      })
-      .eq("key", "tour_planning")
-
-    if (error) throw error
-  } catch (error) {
-    console.error("Error updating tour planning settings:", error)
-    throw error
-  }
-}
-
 // Update all configurations at once
 export const updateAllConfigurations = async (config: AppConfig): Promise<void> => {
   try {
@@ -145,7 +135,6 @@ export const updateAllConfigurations = async (config: AppConfig): Promise<void> 
       updateCapacitySettings(config.capacitySettings),
       updateAvailableDays(config.availableDays),
       updateTimeWindows(config.timeWindows),
-      updateTourPlanningSettings(config.tourPlanning),
     ])
   } catch (error) {
     console.error("Error updating configurations:", error)

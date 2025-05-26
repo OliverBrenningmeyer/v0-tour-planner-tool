@@ -4,10 +4,10 @@ export interface Transport {
   ordererBranch: string
   ordererName: string
 
-  // Delivery date details - these should be actual dates, not weekdays
-  latestDeliveryDate: string // ISO date string
+  // Delivery date details
+  latestDeliveryDay: string
   latestDeliveryTimeWindow: "Morning" | "Afternoon"
-  idealDeliveryDate: string // ISO date string
+  idealDeliveryDay: string
   idealDeliveryTimeWindow: "Morning" | "Afternoon"
   deliveryDate?: string // ISO string of the actual delivery date
 
@@ -37,15 +37,22 @@ export interface Transport {
   lastModifiedBy: string
   creationChannel: string
 
-  // Legacy fields (keeping for compatibility) - these will be derived from dates
+  // Legacy fields (keeping for compatibility)
   name: string
   description: string
-  deliveryDay: string // derived from idealDeliveryDate
+  deliveryDay: string
   vehicleType: "LKW" | "Kran"
   status: "pending" | "confirmed" | "completed" | "cancelled"
 }
 
-export interface TransportColumnProps {
+export interface DraggableTransportCardProps {
+  transport: Transport
+  isOverCapacity?: boolean
+  index: number
+  onClick?: () => void
+}
+
+export interface DroppableColumnProps {
   day: string
   date?: Date
   transports: Transport[]
@@ -55,8 +62,6 @@ export interface TransportColumnProps {
   isAtCapacity: boolean
   onTransportClick?: (transport: Transport) => void
   onEmptySlotClick?: (day: string, isAddonSlot?: boolean) => void
-  routeInfo?: RouteInfo
-  onDrop?: (transportId: string, targetDate: string) => void
 }
 
 // Updated interface for capacity limits - removed count
@@ -71,34 +76,10 @@ export interface CapacityUsage {
   volume: number
 }
 
-// New interfaces for tour planning
-export interface TourPlanningSettings {
-  depotAddress: string
-  stopTimeMinutes: number
-}
-
-export interface RouteInfo {
-  totalDistance: number // in kilometers
-  totalDuration: number // in minutes (driving time only)
-  totalDurationWithStops: number // in minutes (driving time + stop times)
-  stops: RouteStop[]
-}
-
-export interface RouteStop {
-  address: string
-  customerName: string
-  distanceFromPrevious: number // in kilometers
-  durationFromPrevious: number // in minutes
-  stopDuration: number // in minutes
-  timeWindow: "Morning" | "Afternoon"
-  transportId: string
-}
-
 export interface AppConfig {
   capacitySettings: {
     [key: string]: CapacityLimits
   }
   availableDays: string[]
   timeWindows: string[]
-  tourPlanning: TourPlanningSettings
 }
